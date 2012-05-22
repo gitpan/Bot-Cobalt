@@ -1,10 +1,11 @@
 package Bot::Cobalt::Frontend::Utils;
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 use 5.10.1;
 use strictures 1;
 
 use Carp;
+use IO::Handle;
 
 use base 'Exporter';
 

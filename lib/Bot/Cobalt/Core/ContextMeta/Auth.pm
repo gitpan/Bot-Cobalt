@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::ContextMeta::Auth;
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 use 5.10.1;
 use strictures 1;
@@ -150,7 +150,7 @@ __END__
 
 =head1 NAME
 
-Bot::Cobalt::Core::ContextMeta::Auth - ContextMeta class for Auth
+Bot::Cobalt::Core::ContextMeta::Auth - Auth list management
 
 =head1 SYNOPSIS
 

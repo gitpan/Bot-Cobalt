@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB::AsyncSearch;
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 use 5.10.1;
 use Carp;
@@ -261,6 +261,13 @@ Bot::Cobalt::Plugin::RDB::AsyncSearch - Asynchronous RDB deep search
     ErrorEvent  => 'got_rdb_error',
   );
 
+  $poe_kernel->post( $async_sessID,
+    'search_rdb',
+    $rdb_path,
+    $regex,
+    $hints_hash
+  );
+
 =head1 DESCRIPTION
 
 This is a simple POE session for managing fork()/exec()'d
@@ -269,6 +276,12 @@ L<POE::Wheel::Run>.
 
 It does not interact with the L<Bot::Cobalt> core directly in any way; 
 it can be used from any POE session to deep-search RDBs.
+
+Searches should be posted to the B<search_rdb> event (see L</SYNOPSIS>).
+
+Results are returned to the specified B<ResultEvent>; the first argument 
+is an array reference of results, the second argument is the $hints_hash 
+originally passed in via B<search_rdb>.
 
 =head1 AUTHOR
 

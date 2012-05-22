@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB::AsyncSearch::Worker;
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 use strict;
 use warnings;
@@ -14,7 +14,8 @@ sub worker {
   binmode STDOUT;
   binmode STDIN;
   
-  STDOUT->autoflush(1);
+  select(STDOUT);
+  $|++;
   
   my $buf = '';
   my $read_bytes;
