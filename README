@@ -40,17 +40,14 @@ DESCRIPTION
     on-disk databases, and more. See Bot::Cobalt::Manual::Plugins for more
     about plugin authoring.
 
-    Complete documentation is also available in an easy-to-navigate Wiki
-    format at http://www.cobaltirc.org/dev/bots
-
   Initializing a new instance
     A Cobalt instance needs its own *etc/* and *var/* directories. With the
-    default frontend (`cobalt2'), these are specified in a simple 'rcfile'
+    default frontend ("cobalt2"), these are specified in a simple 'rcfile'
     for each particular instance.
 
       sh$ cobalt2-installer
 
-    `cobalt2-installer' will ask some questions, initialize a new rcfile for
+    "cobalt2-installer" will ask some questions, initialize a new rcfile for
     an instance and try to create the relevant directory layout with some
     example configuration files.
 
@@ -70,7 +67,7 @@ DESCRIPTION
       sh$ cobalt2
 
   Included plugins
-    The example `etc/plugins.conf' installed by `cobalt2-installer' has most
+    The example "etc/plugins.conf" installed by "cobalt2-installer" has most
     of these:
 
     Bot::Cobalt::Plugin::Alarmclock -- IRC highlight timers
@@ -101,6 +98,18 @@ DESCRIPTION
 
     Bot::Cobalt::Plugin::Extras::TempConv -- Temperature units conversion
 
+  Extensions on CPAN
+    There are a few externally-distributed plugin sets available via CPAN:
+
+    Bot::Cobalt::Plugin::Calc -- Simple calculator
+
+    Bot::Cobalt::Plugin::RSS -- RSS feed aggregator
+
+    Bot::Cobalt::Plugin::Silly -- Very silly plugin set
+
+    For debugging or playing with Bot::Cobalt::DB databases, you may want to
+    have a look at Bot::Cobalt::DB::Term.
+
 SEE ALSO
     Bot::Cobalt::Manual::Plugins
 
@@ -122,7 +131,7 @@ SEE ALSO
 AUTHOR
     Jon Portnoy <avenj@cobaltirc.org>
 
-    http://www.cobaltirc.org
+    <http://www.cobaltirc.org>
 
     Licensed under the same terms as Perl.
 

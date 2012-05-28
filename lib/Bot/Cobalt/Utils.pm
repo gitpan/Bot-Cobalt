@@ -1,5 +1,5 @@
 package Bot::Cobalt::Utils;
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 use 5.10.1;
 use strict;
@@ -106,12 +106,9 @@ sub rplprintf {
 
 sub glob_grep {
   my $glob = shift || return;
-  my @array;
-  if (ref $_[0] eq 'ARRAY') {
-    @array = @{ shift(@_) };
-  } else {
-    @array = @_;
-  }
+
+  my @array = ref $_[0] eq 'ARRAY' ? @{$_[0]} : @_ ;
+
   my $re = glob_to_re($glob);
   grep { m/$re/ } @array
 }

@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::Sugar;
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 use 5.10.1;
 use strictures 1;
@@ -145,6 +145,8 @@ Wrapper for core->get_plugin_alias() -- see
 L<Bot::Cobalt::Core::Role::EasyAccessors>
 
 =head2 plugin_cfg
+
+  my $opts = plugin_cfg($self)->{Opts};
 
 Returns plugin configuration hashref for the specified plugin.
 Requires a plugin alias or blessed plugin object be specified.

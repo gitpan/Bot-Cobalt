@@ -1,11 +1,10 @@
 package Bot::Cobalt::Frontend::Utils;
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 use 5.10.1;
 use strictures 1;
 
 use Carp;
-use IO::Handle;
 
 use base 'Exporter';
 
@@ -33,8 +32,8 @@ sub ask_question {
         delete $args{validate}
         : croak "validate => should be a coderef";
   }
-    
-  STDOUT->autoflush(1);
+  
+  select(STDOUT); $|++;
   
   my $input;
   
@@ -90,8 +89,8 @@ sub ask_yesno {
     unless $default =~ /^[yn]$/;
 
   my $yn = $default eq 'y' ? 'Y/n' : 'y/N' ;
-  
-  STDOUT->autoflush(1);
+
+  select(STDOUT); $|++;
 
   my $input;
 

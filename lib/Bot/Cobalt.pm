@@ -1,5 +1,5 @@
 package Bot::Cobalt;
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 use 5.10.1;
 use strictures 1;
@@ -90,9 +90,6 @@ utilities, logging, plugin configuration, asynchronous HTTP
 sessions, data serialization and on-disk databases, and more. See 
 L<Bot::Cobalt::Manual::Plugins> for more about plugin authoring.
 
-Complete documentation is also available in an easy-to-navigate Wiki 
-format at L<http://www.cobaltirc.org/dev/bots>
-
 =head2 Initializing a new instance
 
 A Cobalt instance needs its own I<etc/> and I<var/> directories. With 
@@ -153,6 +150,19 @@ L<Bot::Cobalt::Plugin::Extras::Shorten> -- Shorten URLs via Metamark
 
 L<Bot::Cobalt::Plugin::Extras::TempConv> -- Temperature units conversion 
 
+=head2 Extensions on CPAN
+
+There are a few externally-distributed plugin sets available 
+via CPAN:
+
+L<Bot::Cobalt::Plugin::Calc> -- Simple calculator
+
+L<Bot::Cobalt::Plugin::RSS> -- RSS feed aggregator
+
+L<Bot::Cobalt::Plugin::Silly> -- Very silly plugin set
+
+For debugging or playing with L<Bot::Cobalt::DB> databases, you may want 
+to have a look at L<Bot::Cobalt::DB::Term>.
 
 =head1 SEE ALSO
 
