@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC::FloodChk;
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
 use Moo;
 use Bot::Cobalt::Common qw/:types/;
@@ -132,7 +132,9 @@ more than the specified B<in> seconds ago.
 
 =head1 SEE ALSO
 
-Algorithm is borrowed from L<Algorithm::FloodControl>
+Algorithm is borrowed from an excellent article regarding 
+L<Algorithm::FloodControl>; for a more generic rate limiting solution, 
+try there.
 
 =head1 AUTHOR
 

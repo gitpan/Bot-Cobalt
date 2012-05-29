@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Auth;
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
 ## "Standard" Auth module
 ##
@@ -1303,7 +1303,7 @@ sub _write_access_list {
   chmod($perms, $authdb);
 }
 
-no Moo; 1;
+1;
 __END__
 
 

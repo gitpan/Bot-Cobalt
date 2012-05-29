@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Info3;
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
 use 5.12.0;
 
@@ -982,7 +982,7 @@ Useful for checking for variables or RDBs.
 
 =head2 Directing responses at other users
 
-=head4 tell
+=head3 tell
 
 You can instruct the bot to "talk" to someone else using B<tell>:
 

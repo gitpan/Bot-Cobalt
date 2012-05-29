@@ -1,5 +1,15 @@
 # Bot::Cobalt Changes
 
+* 0.005
+
+  Fix an IRC.pm bug that would cause failures if an error event was 
+  received for a context that never completed a connection.
+
+  Fix Utils.pm bug in glob_* functions that would cause failures when
+  operating on a negative value. Should've been defined() checks.
+  
+  POD and test improvements and clean-ups.
+
 * 0.004
 
   Fix IRC.pm bug that kept sessions hanging about when the bot was 
