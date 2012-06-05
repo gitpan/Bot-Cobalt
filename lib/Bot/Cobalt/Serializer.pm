@@ -1,5 +1,5 @@
 package Bot::Cobalt::Serializer;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 use 5.10.1;
 use strictures 1;
@@ -138,7 +138,10 @@ sub freeze {
   ## ->freeze($ref)
   ## serialize arbitrary data structure
   my ($self, $ref) = @_;
-  return unless defined $ref;
+  unless (defined $ref) {
+    carp "freeze() received no data";
+    return
+  }
 
   my $method = lc( $self->Format );
   $method = $method . "_from_ref";
@@ -149,7 +152,10 @@ sub thaw {
   ## ->thaw($data)
   ## deserialize data in specified Format
   my ($self, $data) = @_;
-  return unless defined $data;
+  unless (defined $data) {
+    carp "thaw() received no data";
+    return
+  }
 
   my $method = lc( $self->Format );
   $method = "ref_from_" . $method ;
@@ -189,7 +195,7 @@ sub readfile {
 sub version {
   my ($self) = @_;
   my $module = $self->Types->{ $self->Format };
-  eval "require $module";
+  { local $@; eval "require $module" }
   return($module, $module->VERSION);
 }
 

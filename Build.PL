@@ -84,9 +84,9 @@ my $class = Module::Build->subclass(
 );
 
 my $build = $class->new(
-  module_name => 'Bot::Cobalt',
-  dist_abstract => 'Pluggable IRC bot (cobalt2)',
-  dist_author => 'Jon Portnoy <avenj@cobaltirc.org>',
+  module_name   => 'Bot::Cobalt',
+  dist_abstract => 'Pluggable IRC darkbot-alike',
+  dist_author   => 'Jon Portnoy <avenj@cobaltirc.org>',
   license => 'perl',
   
   create_readme => 1,
@@ -113,33 +113,53 @@ my $build = $class->new(
     'File::Find'     => 0,
     'File::Spec'     => 0,
     'File::Temp'     => 0,
+    'Try::Tiny'      => 0,
     'Fcntl' => 0,
   },
 
   requires => {
    ### Core set ###
       'perl' => '5.12.0',
+
       'Carp' => 0,
+
       'Cwd'  => 0,
-      'Exporter' => 0,
-      'Fcntl'    => 0,
-      'Data::Dumper'   => 0,
-      'DB_File'        => 0,
-      'Digest::SHA'    => 0,
-      'File::Find'     => 0,
-      'File::Spec'     => 0,
-      'File::Basename' => 0,
-      'File::Path'     => '2.00',
-      'Getopt::Long'   => 0,
-      'IO::File'       => 0,
-      'IO::Handle'     => 0,
-      'List::Util'     => 0,
-      'POSIX'          => 0,
-      'Scalar::Util'   => 0,
-      'Storable'       => 0,
-      'Time::HiRes'    => 0,
       
-      'strictures' => '1',
+      'Data::Dumper'     => 0,
+
+      'DB_File'          => 0,
+
+      'Digest::SHA'      => 0,
+
+      'Exporter'         => 0,
+
+      'Fcntl'            => 0,
+      
+      'File::Find'       => 0,
+      'File::Spec'       => 0,
+      'File::Basename'   => 0,
+      'File::Path'       => '2.00',
+      
+      'Getopt::Long'     => 0,
+
+      'IO::File'         => 0,
+      'IO::Handle'       => 0,
+
+      'List::Util'       => 0,
+
+      'Module::CoreList' => 0,
+
+      'POSIX'            => 0,
+
+      'Scalar::Util'     => 0,
+
+      'Storable'         => 0,
+      
+      'strictures'       => 1,
+
+      'Time::HiRes'      => 0,
+
+      'Try::Tiny'        => 0,
       
    ### Cobalt set ###
      # Crypt
@@ -172,9 +192,13 @@ my $build = $class->new(
      # POE::
       'POE'            => '1.311',
 
-      'POE::Component::Client::DNS'  => 0,
-      'POE::Component::Client::HTTP' => '0.945',
+       ## ::Resolver that doesn't fail w/ newer Socket::GetAddrInfo
+       ## (Socket::GetAddrInfo is a bit unnecessary these days, it seems)
+      'POE::Component::Resolver'     => '0.920', 
+       ## Above also applies to Client::HTTP:     
+      'POE::Component::Client::HTTP' => '0.947',
       'POE::Component::Client::Keepalive' => '0',
+      'POE::Component::Client::DNS'  => 0,
       'POE::Component::IRC::State'  => '6.78',
       'POE::Component::Syndicator'  => '0.06',
       'Object::Pluggable'           => '1.27',

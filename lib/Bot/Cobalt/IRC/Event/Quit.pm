@@ -1,7 +1,8 @@
 package Bot::Cobalt::IRC::Event::Quit;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 use Moo;
+use strictures 1;
 use Bot::Cobalt::Common qw/:types/;
 
 extends 'Bot::Cobalt::IRC::Event';

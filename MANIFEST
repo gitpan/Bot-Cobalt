@@ -55,6 +55,7 @@ lib/Bot/Cobalt/Manual/Plugins/Dist.pod
 lib/Bot/Cobalt/Manual/Plugins/Tutorial.pod
 lib/Bot/Cobalt/Plugin/Alarmclock.pm
 lib/Bot/Cobalt/Plugin/Auth.pm
+lib/Bot/Cobalt/Plugin/Extras/CPAN.pm
 lib/Bot/Cobalt/Plugin/Extras/Debug.pm
 lib/Bot/Cobalt/Plugin/Extras/DNS.pm
 lib/Bot/Cobalt/Plugin/Extras/Karma.pm
@@ -95,7 +96,7 @@ t/01_utils/03_timestr.t
 t/01_utils/04_glob.t
 t/01_utils/05_color.t
 t/01_utils/06_frontend.t
-t/02_core/01_loadable.t
+t/02_core/01_core.t
 t/02_core/02_flood.t
 t/02_core/03_contextmeta.t
 t/02_core/04_contextmeta_ignore.t

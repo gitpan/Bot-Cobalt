@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::ContextMeta::Ignore;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 use 5.10.1;
 use strictures 1;
@@ -32,7 +32,7 @@ around 'add' => sub {
     Reason  => $reason,
   };
 
-  $orig->($self, $context, $mask, $meta)
+  $self->$orig($context, $mask, $meta)
 };
 
 sub reason {

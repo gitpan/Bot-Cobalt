@@ -1,16 +1,62 @@
 # Bot::Cobalt Changes
 
-* 0.005
+* 0.006  (05 Jun 2012)
+
+  Fix instance rc files:
+    - Kill old-style rcfiles, use YAML like other confs
+    - Allow absolute 'BASE' path to be passed in
+    - Default to cwd() if not absolute and home directory not available
+    - Create portable paths (File::Spec)
+  This is an incompatible change; issue an informative error and 
+  suggest running `cobalt2-installer` on failure.
+
+  Add Plugin::Extras::CPAN, a simplistic MetaCPAN and Module::CoreList 
+  querying plugin.
+
+  Add debug opt to Bot::Cobalt::Conf constructor. Pass our --debug value 
+  to Conf as well (in bin/cobalt2 and Plugin::Rehash).
+
+  Bot::Cobalt::Serializer should complain when freeze() or thaw() are 
+  given no data.
+
+  Improved ::Core log object handling. Create initial log object at 
+  construction-time (not Syndicator start time) and ensure that 
+  replacement log objects can handle log methods in use in the core set.
+  
+  Use Try::Tiny in place of previous block evals and $@ checks.
+
+  Depend on newer POE::Component::Client::HTTP and 
+  POE::Component::Resolver. Systems with older Components that happened 
+  to grab newer Socket::GetAddrInfo would produce failures due to 
+  Socket::GetAddrInfo API changes -- newer POE bits make use of newer 
+  Socket.pm and drop the GetAddrInfo dependency entirely.
+  ...Not technically "our problem" but this makes my life less annoying 
+  on a couple machines :-)
+
+  Some POD improvements and widely expanded tests.
+
+  Drop 'tick' tracker for low-priority timer pool; pretty useless.
+
+  Various small bug/oversight fixes:
+   - Conf.pm; catch Serializer failures and report more details
+     Related Plugin::Rehash fix to leave current configs untouched on
+     read_cfg failures.
+   - IRC.pm; more consistent error messages
+   - IRC::Event::Nick; fix common() when channels() has changed
+   - Explicitly 'use strictures' in IRC::* subclasses
+   - Plugin::Auth; log to error() not emerg()
+
+* 0.005  (29 May 2012)
 
   Fix an IRC.pm bug that would cause failures if an error event was 
   received for a context that never completed a connection.
 
   Fix Utils.pm bug in glob_* functions that would cause failures when
   operating on a negative value. Should've been defined() checks.
-  
+
   POD and test improvements and clean-ups.
 
-* 0.004
+* 0.004  (27 May 2012)
 
   Fix IRC.pm bug that kept sessions hanging about when the bot was 
   terminated via an online command. (This fixes the busted '!die' 
@@ -22,7 +68,7 @@
    - Bot::Cobalt::Utils
    - Significant POD cleanups
 
-* 0.003
+* 0.003  (22 May 2012)
 
   Require perl-5.12.1; given/when changed sometime in there, it seems,
    and I'm tired of playing with EOL Perls anyway.

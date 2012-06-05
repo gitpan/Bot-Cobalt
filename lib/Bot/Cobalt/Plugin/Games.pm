@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Games;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 use 5.10.1;
 use strict;
@@ -72,12 +72,15 @@ sub _load_games {
     next unless ref $games->{$game}->{Cmds} eq 'ARRAY';
 
     ## attempt to load module
-    eval "require $module";
-    if ($@) {
-      logger->warn("Failed to load $module - $@");
-      next
-    } else {
-      logger->debug("Found: $module");
+    {
+      local $@;
+      eval "require $module";
+      if ($@) {
+        logger->warn("Failed to load $module - $@");
+        next
+      } else {
+        logger->debug("Found: $module");
+      }
     }
 
     push(@{ $self->{ModuleNames} }, $module);
@@ -143,21 +146,18 @@ method is called and passed the original message hash (as specified
 in L<Bot::Cobalt::IRC/Bot_public_msg>) and the stripped string without 
 the command:
 
+  use Bot::Cobalt;
   sub execute {
     my ($self, $msg, $str) = @_;
 
-    ## Get Bot::Cobalt::Core singleton
-    require Bot::Cobalt::Core;
-    my $core = Bot::Cobalt::Core->instance;
-    
     my $src_nick = $msg->src_nick;
     
     . . . 
 
     ## We can return a response to the channel:
-    return $some_response
+    return $some_response;
     
-    ## ...or use $core and return nothing:
+    ## ...or send a message and return nothing:
     broadcast( 'message',
       $msg->context,
       $msg->channel,

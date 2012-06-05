@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::PluginMgr;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 ## handles and eats: !plugin
 
@@ -90,6 +90,7 @@ sub _load_module {
   require Bot::Cobalt::Core;
   my $core = Bot::Cobalt::Core->instance;
 
+  local $@;
   eval "require $module";
   if ($@) {
     ## 'require' failed

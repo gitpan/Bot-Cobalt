@@ -1,5 +1,5 @@
 package Bot::Cobalt::Conf;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 ## Bot::Cobalt::Conf
 ## Looks for the following YAML confs:
@@ -11,18 +11,20 @@ our $VERSION = '0.005';
 ## See plugins.conf for more information.
 
 use 5.10.1;
-use strict;
-use warnings;
-use Carp;
-
 use Moo;
-use Bot::Cobalt::Common qw/:types/;
+use strictures 1;
+
+use Carp;
+use Try::Tiny;
 
 use File::Spec;
 
-has 'etc' => ( is => 'rw', isa => Str, required => 1 );
 
+use Bot::Cobalt::Common qw/:types/;
 use Bot::Cobalt::Serializer;
+
+has 'etc'   => ( is => 'rw', isa => Str, required => 1 );
+has 'debug' => ( is => 'rw', isa => Bool, default => sub { 0 } );
 
 sub _read_conf {
   ## deserialize a YAML conf
@@ -34,6 +36,9 @@ sub _read_conf {
   }
 
   my $etc = $self->etc;
+
+  warn "_read_conf; using etcdir $etc" if $self->debug;
+
   unless (-e $self->etc) {
     carp "cannot find etcdir: $self->etc";
     return
@@ -43,6 +48,8 @@ sub _read_conf {
     $etc,
     File::Spec->splitpath($relative_to_etc)
   );
+  
+  warn "_read_conf; reading conf path $path" if $self->debug;
 
   unless (-e $path) {
     carp "cannot find $path at $self->etc";
@@ -50,10 +57,16 @@ sub _read_conf {
   }
 
   my $serializer = Bot::Cobalt::Serializer->new;
-  my $thawed = $serializer->readfile( $path );
+  
+  my $thawed;
+  try
+    { $thawed = $serializer->readfile( $path ) }
+  catch {
+    croak "Serializer readfile() failed for $path: $_"
+  };
 
   unless ($thawed) {
-    carp "Serializer failure!";
+    carp "Serializer returned nothing; empty file, perhaps? ($path)";
     return
   }
 

@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 ## This is the core Syndicator singleton.
 
@@ -34,7 +34,23 @@ has 'etc' => ( is => 'ro', isa => Str, lazy => 1,
   default => sub { $_[0]->cfg->{path} }
 );
 
-has 'log'      => ( is => 'rw', isa => Object );
+has 'log'      => ( is => 'rw', 
+  isa => sub {
+    unless (blessed $_[0]) {
+      die "log() not passed a blessed object"
+    }
+
+    for my $meth (qw/debug info warn error/) {
+      die "log() object missing required method $meth"
+        unless $_[0]->can($meth);
+    }
+  },
+  
+  default => sub {
+    Log::Handler->create_logger("cobalt");
+  },
+);
+
 has 'loglevel' => ( 
   is => 'rw', isa => Str, 
   default => sub { 'info' } 
@@ -124,41 +140,39 @@ with 'Bot::Cobalt::Core::Role::IRC';
 sub init {
   my ($self) = @_;
 
-  my $newlogger = Log::Handler->create_logger("cobalt");
-  my $maxlevel = $self->loglevel;
-  $maxlevel = 'debug' if $self->debug;
-  my $logfile = $self->cfg->{core}->{Paths}->{Logfile}
-                // File::Spec->catfile( $self->var, 'cobalt.log' );
-  $newlogger->add(
-    file => {
-     maxlevel => $maxlevel,
-     timeformat     => "%Y/%m/%d %H:%M:%S",
-     message_layout => "[%T] %L %p %m",
+  my $maxlevel = $self->debug ? 'debug' : $self->loglevel ;
 
-     filename => $logfile,
-     filelock => 1,
-     fileopen => 1,
-     reopen   => 1,
-     autoflush => 1,
+  my $logfile  = $self->cfg->{core}->{Paths}->{Logfile}
+                // File::Spec->catfile( $self->var, 'cobalt.log' );
+
+  $self->log->add(
+    file => {
+      maxlevel => $maxlevel,
+      timeformat     => "%Y/%m/%d %H:%M:%S",
+      message_layout => "[%T] %L %p %m",
+
+      filename => $logfile,
+      filelock => 1,
+      fileopen => 1,
+      reopen   => 1,
+      autoflush => 1,
     },
   );
 
-  $self->log($newlogger);
+  unless ($self->detached) {
+    $self->log->add(
+      screen => {
+        log_to => "STDOUT",
+        maxlevel => $maxlevel,
+        timeformat     => "%Y/%m/%d %H:%M:%S",
+        message_layout => "[%T] %L (%p) %m",
+      },
+    );
+  }
 
   ## Load configured langset (defaults to english)
   my $language = ($self->cfg->{core}->{Language} //= 'english');
   $self->lang( $self->load_langset($language) );
-
-  unless ($self->detached) {
-    $newlogger->add(
-     screen => {
-       log_to => "STDOUT",
-       maxlevel => $maxlevel,
-       timeformat     => "%Y/%m/%d %H:%M:%S",
-       message_layout => "[%T] %L (%p) %m",
-     },
-    );
-  }
 
   $self->_syndicator_init(
     prefix => 'ev_',  ## event prefix for sessions
@@ -205,11 +219,14 @@ sub syndicator_started {
     
     my $module = $self->cfg->{plugins}->{$plugin}->{Module};
     
-    eval "require $module";
-    if ($@) {
-      $self->log->warn("Could not load $module: $@");
-      $self->unloader_cleanup($module);
-      next 
+    {
+      local $@;
+      eval "require $module";
+      if ($@) {
+        $self->log->warn("Could not load $module: $@");
+        $self->unloader_cleanup($module);
+        next 
+      }
     }
     
     my $obj = $module->new();
@@ -268,7 +285,7 @@ sub syndicator_stopped {
   $kernel->alarm('core_timer_check_pool');
   $kernel->signal( $kernel, 'POCOIRC_SHUTDOWN' );
   $kernel->post( $kernel, 'shutdown' );
-  $self->log->warn("Syndicator stopped.");
+  $self->log->warn("Core syndicator stopped.");
 }
 
 sub ev_plugin_error {
@@ -287,8 +304,6 @@ sub ev_plugin_error {
 
 sub core_timer_check_pool {
   my ($kernel, $self) = @_[KERNEL, OBJECT];
-  my $tick = $_[ARG0];
-  ++$tick;
 
   ## Timers are provided by Core::Role::Timers
 
@@ -299,17 +314,17 @@ sub core_timer_check_pool {
 
     unless (blessed $timer && $timer->isa('Bot::Cobalt::Timer') ) {
       ## someone's been naughty
-      $self->log->warn("not a Bot::Cobalt::Timer: $id (in tick $tick)");
+      $self->log->warn("not a Bot::Cobalt::Timer: $id");
       delete $timerpool->{$id};
       next TIMER
     }
     
     if ( $timer->execute_if_ready ) {
       my $event = $timer->event;
-      $self->log->debug("timer execute; $id ($event) in tick $tick")
+      $self->log->debug("timer execute; $id ($event)")
         if $self->debug > 1;
 
-      $self->send_event( 'executed_timer', $id, $tick );
+      $self->send_event( 'executed_timer', $id );
       $self->timer_del($id);
     }
   
@@ -317,8 +332,7 @@ sub core_timer_check_pool {
   
   ## most definitely not a high-precision timer.
   ## checked every second or so
-  ## tracks timer pool ticks
-  $kernel->alarm('core_timer_check_pool' => time + 1, $tick);
+  $kernel->alarm('core_timer_check_pool' => time + 1);
 }
 
 1;

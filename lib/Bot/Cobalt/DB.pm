@@ -1,5 +1,5 @@
 package Bot::Cobalt::DB;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 ## Simple interface to a DB_File (berkdb1.x interface)
 ## Uses proper retie-after-lock technique for locking
@@ -159,8 +159,7 @@ sub dbopen {
     sub { $_ .= "\0" }
   );
 
-  ## Storable is probably faster
-  ## ... but has no backwards compat guarantee, really
+  ## JSONified values
   $self->DB->filter_fetch_value(
     sub {
       s/\0$//;

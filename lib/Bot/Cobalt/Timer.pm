@@ -1,5 +1,5 @@
 package Bot::Cobalt::Timer;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 use strictures 1;
 use 5.10.1;
@@ -19,7 +19,7 @@ use Bot::Cobalt::Common qw/:types/;
 has 'core'  => ( is => 'rw', isa => Object, lazy => 1,
   default => sub { 
     require Bot::Cobalt::Core;
-    die "Cannot find aactive Bot::Cobalt::Core instance"
+    die "Cannot find active Bot::Cobalt::Core instance"
       unless Bot::Cobalt::Core->is_instanced;
     Bot::Cobalt::Core->instance 
   },

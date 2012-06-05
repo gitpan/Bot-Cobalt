@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Rehash;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 ## HANDLES AND EATS:
 ##  !rehash
@@ -18,6 +18,8 @@ use strictures 1;
 use Bot::Cobalt;
 use Bot::Cobalt::Common;
 use Bot::Cobalt::Conf;
+
+use Try::Tiny;
 
 sub new { bless {}, shift }
 
@@ -230,11 +232,20 @@ sub _get_new_cfg {
 
   my $etcdir = core->cfg->{path};
   
+  logger->debug("Using etcdir $etcdir");
+  
   my $ccf = Bot::Cobalt::Conf->new(
-    etc => $etcdir
+    etc   => $etcdir,
+    debug => core()->debug,
   );
   
-  my $newcfg = $ccf->read_cfg;
+  my $newcfg;
+  try 
+    { $newcfg = $ccf->read_cfg }
+  catch {
+    logger->error("Failed read_cfg: $_");
+    return
+  };
   
   unless (ref $newcfg eq 'HASH') {
     logger->warn("_get_new_cfg; Bot::Cobalt::Conf did not return a hash");

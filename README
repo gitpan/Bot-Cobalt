@@ -5,6 +5,7 @@ SYNOPSIS
       ## Set up example confs and a simple ~/.cobalt2rc :
       sh$ cobalt2-installer
 
+      ## Get some assistance:
       sh$ cobalt2 --help
   
       ## Launch in foreground:
@@ -84,6 +85,8 @@ DESCRIPTION
 
     Bot::Cobalt::Plugin::RDB -- "Random stuff" databases for quotebots or
     randomized chatter on a timer
+
+    Bot::Cobalt::Plugin::Extras::CPAN -- Query MetaCPAN and Module::CoreList
 
     Bot::Cobalt::Plugin::Extras::DNS -- DNS lookups
 

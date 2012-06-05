@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::ContextMeta::Auth;
-our $VERSION = '0.005';
+our $VERSION = '0.006';
 
 use 5.10.1;
 use strictures 1;
@@ -46,7 +46,7 @@ around 'add' => sub {
     Flags => $args{flags},
   };
 
-  $orig->($self, $args{context}, $args{nickname}, $meta);
+  $self->$orig($args{context}, $args{nickname}, $meta);
 };
 
 sub level {
