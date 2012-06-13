@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Info3;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use 5.12.0;
 
@@ -840,8 +840,6 @@ sub _info_format {
     W => core->url,          ## website
   };
 
-  ## FIXME -- some color code syntax ?
-  
   ##  1~ 2~ .. etc
   my $x = 0;
   for my $item (split ' ', $orig) {
@@ -979,6 +977,9 @@ Displays the raw (unparsed) topic response.
 
 Useful for checking for variables or RDBs.
 
+=head3 about
+
+Returns metadata regarding when the topic was added and by whom.
 
 =head2 Directing responses at other users
 
@@ -1065,7 +1066,5 @@ L<Bot::Cobalt::Plugin::RDB> for details.
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

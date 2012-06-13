@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 ## 'Random' DBs, often used for quotebots or random chatter
 
@@ -1363,7 +1363,5 @@ Arguments are:
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

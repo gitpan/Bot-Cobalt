@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Alarmclock;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use 5.10.1;
 use strict;
@@ -203,7 +203,5 @@ Mimics B<darkbot6> behavior, but with saner time string grammar.
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

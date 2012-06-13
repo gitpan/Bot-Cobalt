@@ -1,5 +1,5 @@
 package Bot::Cobalt::Conf;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 ## Bot::Cobalt::Conf
 ## Looks for the following YAML confs:
@@ -19,12 +19,23 @@ use Try::Tiny;
 
 use File::Spec;
 
-
 use Bot::Cobalt::Common qw/:types/;
 use Bot::Cobalt::Serializer;
 
-has 'etc'   => ( is => 'rw', isa => Str, required => 1 );
-has 'debug' => ( is => 'rw', isa => Bool, default => sub { 0 } );
+has 'etc'   => (
+  required => 1,
+
+  is  => 'rw', 
+  isa => Str, 
+);
+
+has 'debug' => (
+  is  => 'rw', 
+  isa => Bool, 
+  
+  default => sub { 0 } 
+);
+
 
 sub _read_conf {
   ## deserialize a YAML conf
@@ -62,6 +73,7 @@ sub _read_conf {
   try
     { $thawed = $serializer->readfile( $path ) }
   catch {
+    ## Still dies, but with more useful information.
     croak "Serializer readfile() failed for $path: $_"
   };
 
@@ -75,17 +87,17 @@ sub _read_conf {
 
 sub _read_core_cobalt_conf {
   my ($self) = @_;
-  return $self->_read_conf("cobalt.conf");
+  $self->_read_conf("cobalt.conf");
 }
 
 sub _read_core_channels_conf {
   my ($self) = @_;
-  return $self->_read_conf("channels.conf");
+  $self->_read_conf("channels.conf");
 }
 
 sub _read_core_plugins_conf {
   my ($self) = @_;
-  return $self->_read_conf("plugins.conf");
+  $self->_read_conf("plugins.conf");
 }
 
 sub _read_plugin_conf {
@@ -148,14 +160,14 @@ sub read_cfg {
   if ($core_cf && ref $core_cf eq 'HASH') {
     $conf->{core} = $core_cf;
   } else {
-    croak "failed to load cobalt.conf";
+    croak "Failed to load cobalt.conf";
   }
 
   my $chan_cf = $self->_read_core_channels_conf;
   if ($chan_cf && ref $chan_cf eq 'HASH') {
     $conf->{channels} = $chan_cf;
   } else {
-    carp "failed to load channels.conf";
+    carp "Failed to load channels.conf, using empty hash";
     ## busted cf, set up an empty context
     $conf->{channels} = { Main => {} } ;
   }
@@ -164,7 +176,7 @@ sub read_cfg {
   if ($plug_cf && ref $plug_cf eq 'HASH') {
     $conf->{plugins} = $plug_cf;
   } else {
-    carp "failed to load plugins.conf";
+    carp "Failed to load plugins.conf, using empty hash";
     $conf->{plugins} = { } ;
   }
 
@@ -235,7 +247,5 @@ B<Config> directives. Keyed on plugin alias.
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

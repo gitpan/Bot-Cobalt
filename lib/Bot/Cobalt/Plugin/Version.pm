@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Version;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 ## Always declare a package name as the first line.
 ## For example, if your module lives in:
 ##   lib/Cobalt/Plugin/User/MyPlugin.pm
@@ -14,10 +14,9 @@ our $VERSION = '0.007';
 ##  'os'
 
 ## Specifying a recent Perl is usually a good idea.
-## You get handy new features like given/when case statements,
-## better Unicode semantics, etc.
-## You need at least 5.10.1 to run cobalt2 anyway:
-use 5.10.1;
+## You get handy new features like given/when case statements
+## You need at least 5.12.1 to run cobalt2 anyway:
+use 5.12.1;
 
 ## Always, always use strict & warnings:
 use strict;

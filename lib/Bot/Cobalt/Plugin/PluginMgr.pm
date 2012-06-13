@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::PluginMgr;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 ## handles and eats: !plugin
 
@@ -394,7 +394,5 @@ configuration.
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

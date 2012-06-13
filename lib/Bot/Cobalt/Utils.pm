@@ -1,5 +1,5 @@
 package Bot::Cobalt::Utils;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use 5.10.1;
 use strict;
@@ -63,12 +63,17 @@ our %COLORS = (
   LIGHT_GREY  => "\x0315",
 );
 
+my %default_fmt_vars;
+for my $color (keys %COLORS) {
+  my $fmtvar = 'C_'.$color;
+  $default_fmt_vars{$fmtvar} = $COLORS{$color};
+}
 
 ## String formatting, usually for langsets:
 sub rplprintf {
-  my ($string, $vars) = @_;
+  my $string = shift;
   return '' unless $string;
-  $vars = {} unless $vars;
+
   ## rplprintf( $string, $vars )
   ## returns empty string if no string is specified.
   ##
@@ -79,26 +84,33 @@ sub rplprintf {
   ## $vars should be a hash keyed by variable, f.ex:
   ##   'user' => $username,
   ##   'err'  => $error,
-
-  ## %C_* colors / formats :
-  for my $color (keys %COLORS) {
-    my $fmtvar = 'C_'.$color;
-    $vars->{$fmtvar} = $COLORS{$color};
+  
+  my %vars = %default_fmt_vars;
+  
+  if (@_ > 1) {
+    my %args = @_;
+    $vars{$_} = delete $args{$_} for keys %args;
+  } else {
+    if (ref $_[0] eq 'HASH') {
+      $vars{$_} = $_[0]->{$_} for keys %{$_[0]}
+    } else {
+      croak "rplprintf() expects a hash"
+    }
   }
 
   my $repl = sub {
     ## _repl($1, $2, $vars)
-    my ($orig, $match, $vars) = @_;
-    return $orig unless ref $vars and defined $vars->{$match};
-    my $replace = $vars->{$match};
+    my ($orig, $match, $varref) = @_;
+    return $orig unless defined $varref->{$match};
+    my $replace = $varref->{$match};
     return $replace
   };
 
   my $regex = qr/(%([^\s%]+)%?)/;
 
-  $string =~ s/$regex/$repl->($1, $2, $vars)/ge;
+  $string =~ s/$regex/$repl->($1, $2, \%vars)/ge;
 
-  return $string  
+  $string
 }
 
 
@@ -106,22 +118,24 @@ sub rplprintf {
 
 sub glob_grep {
   my $glob = shift;
-  croak "glob_grep called with no arguments!"
+  confess "glob_grep called with no arguments!"
     unless defined $glob;
 
   my @array = ref $_[0] eq 'ARRAY' ? @{$_[0]} : @_ ;
 
   my $re = glob_to_re($glob);
+  
   grep { m/$re/ } @array
 }
 
 sub glob_to_re {
   my ($glob) = @_;
-  croak "glob_to_re called with no arguments!"
+  confess "glob_to_re called with no arguments!"
     unless defined $glob;
 
   my $re = glob_to_re_str($glob);
-  return qr/$re/
+  
+  qr/$re/
 }
 
 sub glob_to_re_str {
@@ -133,7 +147,7 @@ sub glob_to_re_str {
   ##   so is trailing $
   ##   char classes are accepted
   my ($glob) = @_;
-  croak "glob_to_re_str called with no arguments!"
+  confess "glob_to_re_str called with no arguments!"
     unless defined $glob;
 
   my($re, $in_esc);
@@ -190,7 +204,7 @@ sub glob_to_re_str {
     $in_esc = 0;
   }
 
-  return $re
+  $re
 }
 
 
@@ -256,7 +270,7 @@ sub timestr_to_secs {
     }
   }
 
-  return $secs
+  $secs
 }
 
 sub _time_breakdown {
@@ -280,7 +294,7 @@ sub secs_to_timestr {
   $str .= $mins  .'m' if $mins;  
   $str .= $sec   .'s' if $sec;
 
-  return $str  
+  $str  
 }
 
 sub secs_to_str {
@@ -313,10 +327,10 @@ Bot::Cobalt::Utils - Utilities for Cobalt plugins
 Bot::Cobalt::Utils provides a set of simple utility functions for the 
 L<Bot::Cobalt> core and plugins.
 
-Plugin authors may wish to make use of these; simply importing the 
-B<:ALL> set from Bot::Cobalt::Utils will give you access to the entirety of
-this utility module, including useful string formatting tools, safe 
-password hashing functions, etc. See L</USAGE>, below.
+Plugin authors may wish to make use of these; importing the B<:ALL> tag 
+from Bot::Cobalt::Utils will give you access to the entirety of this 
+utility module, including useful string formatting tools, safe 
+password hashing functions, etc.
 
 You may also want to look at L<Bot::Cobalt::Common>, which exports most 
 of this module.
@@ -326,19 +340,22 @@ of this module.
 Import nothing:
 
   use Bot::Cobalt::Utils;
+  
   my $hash = Bot::Cobalt::Utils::mkpasswd('things');
 
 Import some things:
 
   use Bot::Cobalt::Utils qw/ mkpasswd passwdcmp /;
+  
   my $hash = mkpasswd('things');
 
 Import all the things:
 
   use Bot::Cobalt::Utils qw/ :ALL /;
-  my $hash = mkpasswd('things', 'md5');
+  
+  my $hash = mkpasswd('things', 'sha512');
   my $secs = timestr_to_secs('3h30m');
-  ...
+  . . .
 
 
 See below for a list of exportable functions.
@@ -431,6 +448,9 @@ string, terminated by NORMAL:
 
   my $formatted = color('red', "red text") . "normal text";
 
+The hash B<%COLORS> is exported as part of I<:ALL>. Its keys are the 
+same as the formatting/color names listed above. You should really use 
+C<color()> instead.
 
 =head3 glob_to_re_str
 
@@ -477,7 +497,7 @@ matching the specified glob:
   my @matches = glob_grep($glob, @array) || 'No matches!';
   my @matches = glob_grep($glob, $array_ref);
 
-Returns the output of L<grep>, which will be a list in list context or 
+Returns the output of grep, which will be a list in list context or 
 the number of matches in scalar context.
 
 
@@ -497,11 +517,11 @@ strings.
 For example:
 
   $string = "Access denied for %user (%host%)";
-  $response = rplprintf( $string,
-    { 
+  $response = rplprintf( 
+      $string,
+
       user => "Joe",
       host => "joe!joe@example.org",
-    } 
   );  ## -> 'Access denied for Joe (joe!joe@example.org)'
 
 Intended for formatting langset RPLs before sending.
@@ -522,11 +542,14 @@ The same color/format strings as L</color> can be applied via %C_* vars:
 Simple interface for creating hashed passwords.
 
 Defaults to creating a password using L<Crypt::Eksblowfish::Bcrypt> 
-with bcrypt work cost '08' -- this is a pretty sane default.
+with a random salt and bcrypt work cost '08' -- this is a pretty sane 
+default.
 
-See L<App::bmkpasswd> for details.
+See L<App::bmkpasswd> for details; the built-in hash generation sugar 
+was moved to that package.
 
-bcrypt is strongly recommended; SHA and MD5 methods are also supported.
+bcrypt is strongly recommended; SHA and MD5 methods are also supported. 
+Salts are always random.
 
   ## create a bcrypted password (work cost 08)
   ## bcrypt is blowfish with a work cost factor.
@@ -552,24 +575,17 @@ bcrypt is strongly recommended; SHA and MD5 methods are also supported.
 
 Compare hashed passwords.
 
-Compatible with whatever methods C<mkpasswd> 
-supports on your system.
+Compatible with whatever methods C<mkpasswd> supports on the current 
+system.
 
   return passwdcmp($password, $hashed);
 
-Returns the hash if the cleartext password is a match. 
-Otherwise, returns 0.
+Returns the hash if the cleartext password is a match. Otherwise returns 
+boolean false.
 
-=head1 ALSO EXPORTED
-
-The hash B<%COLORS> is exported as part of I<:ALL>.
-
-You should really use C<color()> instead.
 
 =head1 AUTHOR
 
 Jon Portnoy (avenj)
-
-L<http://www.cobaltirc.org>
 
 =cut

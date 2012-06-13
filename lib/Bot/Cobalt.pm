@@ -1,10 +1,9 @@
 package Bot::Cobalt;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use 5.10.1;
 use strictures 1;
 use Carp;
-use Moo;
 
 use Bot::Cobalt::Core::Sugar;
 
@@ -35,7 +34,7 @@ sub instance {
 
 sub new {
   croak "Bot::Cobalt is a stub; it cannot be constructed.\n"
-    . "See the perldoc for Bot::Cobalt::Core\n";
+    . "See the perldoc for Bot::Cobalt::Core";
 }
 
 1;

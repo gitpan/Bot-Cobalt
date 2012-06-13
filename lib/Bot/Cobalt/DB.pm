@@ -1,12 +1,11 @@
 package Bot::Cobalt::DB;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
-## Simple interface to a DB_File (berkdb1.x interface)
+## Simple interface to a DB_File
 ## Uses proper retie-after-lock technique for locking
 
-use 5.10.1;
+use 5.12.1;
 use strictures 1;
-
 use Carp;
 
 use Moo;
@@ -19,65 +18,100 @@ use IO::File;
 use Bot::Cobalt::Serializer;
 use Bot::Cobalt::Common qw/:types/;
 
-has 'File'  => ( is => 'rw', isa => Str, required => 1 );
+has 'File'  => ( 
+  is  => 'rw', 
+  isa => Str, 
+  
+  required => 1 
+);
 
-has 'Perms' => ( is => 'rw', 
+has 'Perms' => ( 
+  is => 'rw', 
+  
   default => sub { 0644 },
 );
 
-has 'Raw'     => ( is => 'rw', isa => Bool, 
+has 'Raw'     => ( 
+  is  => 'rw', 
+  isa => Bool, 
+  
   default => sub { 0 },
 );
 
-
-has 'Timeout' => ( is => 'rw', isa => Num, 
+has 'Timeout' => ( 
+  is  => 'rw', 
+  isa => Num, 
+  
   default => sub { 5 },
 );
 
-has 'Serializer' => ( is => 'rw', isa => Object, lazy => 1,
+has 'Serializer' => ( 
+  lazy => 1,
+  is   => 'rw', 
+  isa  => Object, 
+
   default => sub {
     Bot::Cobalt::Serializer->new(Format => 'JSON')
   },
 );
 
 ## _orig is the original tie().
-has '_orig' => ( is => 'rw', isa => HashRef, 
+has '_orig' => ( 
+  is  => 'rw', 
+  isa => HashRef, 
+
   default => sub { {} },
 );
 
 ## Tied is the re-tied DB hash.
-has 'Tied' => ( is => 'rw', isa => HashRef, 
+has 'Tied'  => ( 
+  is  => 'rw', 
+  isa => HashRef, 
+
   default   => sub { {} },
 );
 
-has '_lockFH' => ( is => 'rw', isa => FileHandle, lazy => 1,
+has '_lockFH' => ( 
+  lazy => 1,
+  is   => 'rw',
+  isa  => FileHandle, 
+
   predicate => 'has_LockFH',
   clearer   => 'clear_LockFH', 
 );
 
 ## LOCK_EX or LOCK_SH for current open
-has '_lockmode' => ( is => 'rw', lazy => 1,
+has '_lockmode' => ( 
+  lazy => 1,
+  is  => 'rw', 
+
   predicate => 'has_LockMode',
   clearer   => 'clear_LockMode',
 );
 
 ## DB object.
-has 'DB'     => ( is => 'rw', isa => Object, lazy => 1,
+has 'DB'     => ( 
+  lazy => 1,
+  is   => 'rw', 
+  isa  => Object, 
+
   predicate => 'has_DB',
   clearer   => 'clear_DB',
 );
 
-has 'is_open' => ( is => 'rw', isa => Bool,
+has 'is_open' => ( 
+  is => 'rw', 
+  isa => Bool,
+  
   default => sub { 0 },
 );
 
 sub BUILDARGS {
   my ($class, @args) = @_;
-  if (@args == 1) {
-    return { File => shift @args }
-  } else {
-    return { @args }
-  }
+
+  @args == 1 ? 
+    { File => $args[0] }
+    : { @args }
 }
 
 sub DESTROY {
@@ -88,7 +122,8 @@ sub DESTROY {
 sub dbopen {
   my ($self, %args) = @_;
   $args{lc $_} = delete $args{$_} for keys %args;
-  
+
+  ## per-open timeout was specified:
   $self->Timeout( $args{timeout} )
     if $args{timeout};
   
@@ -116,13 +151,13 @@ sub dbopen {
   ## call a sync() to create if needed
   my $orig_db = tie %{ $self->_orig }, "DB_File", $path,
       $fflags, $self->Perms, $DB_HASH
-      or croak "failed db open: $path: $!" ;
+      or confess "failed db open: $path: $!" ;
   $orig_db->sync();
   
   ## dup a FH to $db->fd for _lockFH  
   my $fd = $orig_db->fd;
   my $fh = IO::File->new("<&=$fd")
-    or croak "failed dup in dbopen: $!";
+    or confess "failed dup in dbopen: $!";
 
   my $timer = 0;
   my $timeout = $self->Timeout;
@@ -142,7 +177,7 @@ sub dbopen {
   ## reopen DB to Tied
   my $db = tie %{ $self->Tied }, "DB_File", $path,
       $fflags, $self->Perms, $DB_HASH
-      or croak "failed db reopen: $path: $!"; 
+      or confess "failed db reopen: $path: $!"; 
 
   ## preserve db obj and lock fh
   $self->is_open(1);
@@ -209,7 +244,7 @@ sub dbclose {
 
 sub get_tied {
   my ($self) = @_;
-  croak "attempted to get_tied on unopened db"
+  confess "attempted to get_tied on unopened db"
     unless $self->is_open;
 
   return $self->Tied
@@ -217,7 +252,7 @@ sub get_tied {
 
 sub get_db {
   my ($self) = @_;
-  croak "attempted to get_db on unopened db"
+  confess "attempted to get_db on unopened db"
     unless $self->is_open;
 
   return $self->DB
@@ -225,7 +260,7 @@ sub get_db {
 
 sub dbkeys {
   my ($self) = @_;
-  croak "attempted 'dbkeys' on unopened db"
+  confess "attempted 'dbkeys' on unopened db"
     unless $self->is_open;
 
   return wantarray ? (keys %{ $self->Tied })
@@ -234,7 +269,7 @@ sub dbkeys {
 
 sub get {
   my ($self, $key) = @_;
-  croak "attempted 'get' on unopened db"
+  confess "attempted 'get' on unopened db"
     unless $self->is_open;
   return undef unless exists $self->Tied->{$key};
 
@@ -243,7 +278,7 @@ sub get {
 
 sub put {
   my ($self, $key, $value) = @_;
-  croak "attempted 'put' on unopened db"
+  confess "attempted 'put' on unopened db"
     unless $self->is_open;
 
   return $self->Tied->{$key} = $value;
@@ -251,7 +286,7 @@ sub put {
 
 sub del {
   my ($self, $key) = @_;
-  croak "attempted 'del' on unopened db"
+  confess "attempted 'del' on unopened db"
     unless $self->is_open;
   return undef unless exists $self->Tied->{$key};
   delete $self->Tied->{$key};
@@ -260,7 +295,7 @@ sub del {
 
 sub dbdump {
   my ($self, $format) = @_;
-  croak "attempted dbdump on unopened db"
+  confess "attempted dbdump on unopened db"
     unless $self->is_open;
   $format = 'YAMLXS' unless $format;
   
@@ -445,7 +480,5 @@ other non-Perl applications.
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

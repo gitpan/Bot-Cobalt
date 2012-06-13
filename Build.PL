@@ -34,12 +34,16 @@ my $class = Module::Build->subclass(
     
     sub ACTION_versionify {
       my $self = shift;
+
       my $base = $self->base_dir;
       my $vers = $self->dist_version;
+
       ++$|;
+
       print "Versionifying ";
       require File::Find;
       File::Find->import('find');
+
       my $x;
       find(sub {
           if ($_ =~ /\.pm(.in)?$/) {
@@ -119,7 +123,7 @@ my $build = $class->new(
 
   requires => {
    ### Core set ###
-      'perl' => '5.12.0',
+      'perl' => '5.12.1',
 
       'Carp' => 0,
 
@@ -163,7 +167,7 @@ my $build = $class->new(
       
    ### Cobalt set ###
      # Crypt
-      'App::bmkpasswd' => 0,
+      'App::bmkpasswd' => '1.06',
 
      # HTTP
       'HTTP::Request'  => 0,

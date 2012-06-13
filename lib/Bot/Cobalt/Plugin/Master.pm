@@ -1,10 +1,9 @@
 package Bot::Cobalt::Plugin::Master;
-our $VERSION = '0.007';
-## FIXME:
-##  !server < list | connect | disconnect ... >
-##  !restart(?) / !die
+our $VERSION = '0.008';
 
 use 5.10.1;
+use strictures 1;
+
 use Bot::Cobalt;
 use Bot::Cobalt::Common;
 
@@ -12,30 +11,32 @@ sub new { bless {}, shift }
 
 sub Cobalt_register {
   my ($self, $core) = splice @_, 0, 2;
-  $self->{core} = $core;
-  $core->plugin_register( $self, 'SERVER',
-    [
-      'public_cmd_join',
-      'public_cmd_part',
-      'public_cmd_cycle',
 
-#      'public_cmd_server',
-      'public_cmd_die',
+  register( $self, 'SERVER',
+    qw/
+      public_cmd_join
+      public_cmd_part
+      public_cmd_cycle
 
-      'public_cmd_op',
-      'public_cmd_deop',
-      'public_cmd_voice',
-      'public_cmd_devoice',
-    ],
+      public_cmd_die
+
+      public_cmd_op
+      public_cmd_deop
+      public_cmd_voice
+      public_cmd_devoice
+    /
   );
 
-  $core->log->info("Loaded");  
+  logger->info("Loaded");  
+
   return PLUGIN_EAT_NONE
 }
 
 sub Cobalt_unregister {
   my ($self, $core) = splice @_, 0, 2;
-  $core->log->info("Unloaded");
+
+  logger->info("Unloaded");
+
   return PLUGIN_EAT_NONE
 }
 
@@ -44,21 +45,23 @@ sub Cobalt_unregister {
 
 sub Bot_public_cmd_cycle {
   my ($self, $core) = splice @_, 0, 2;
-  my $msg     = ${ $_[0] };
-  my $context = $msg->context;
+  my $msg = ${ $_[0] };
+  
+  my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
 
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
 
-  my $requiredlev = $pcfg->{Opts}->{Level_joinpart} // 3; 
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_joinpart} // 3; 
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   ## fail quietly for unauthed users
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
 
-  $core->log->info("CYCLE issued by $src_nick");
+  logger->info("CYCLE issued by $src_nick");
   
   my $channel = $msg->channel;  
+  
   broadcast( 'part', $context, $channel, "Cycling $channel" );
   broadcast( 'join', $context, $channel );
 
@@ -67,19 +70,24 @@ sub Bot_public_cmd_cycle {
 
 sub Bot_public_cmd_join {
   my ($self, $core) = splice @_, 0, 2;
-  my $msg     = ${ $_[0] };
+  my $msg = ${ $_[0] };
+
   my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
 
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
 
-  my $requiredlev = $pcfg->{Opts}->{Level_joinpart} // 3; 
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_joinpart} // 3; 
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
   
   my $channel = $msg->message_array->[0];
-  return PLUGIN_EAT_ALL unless $channel;
+  
+  unless ($channel) {
+    ## FIXME langset rpl  
+    return PLUGIN_EAT_ALL
+  }
   
   $core->log->info("JOIN ($channel) issued by $src_nick");
   
@@ -93,13 +101,14 @@ sub Bot_public_cmd_join {
 
 sub Bot_public_cmd_part {
   my ($self, $core) = splice @_, 0, 2;
-  my $msg     = ${ $_[0] };
+  my $msg = ${ $_[0] };
+  
   my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
 
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
 
-  my $requiredlev = $pcfg->{Opts}->{Level_joinpart} // 3; 
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_joinpart} // 3; 
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
@@ -111,6 +120,7 @@ sub Bot_public_cmd_part {
   broadcast( 'message', $context, $msg->channel,
       "Leaving $channel"
   );
+
   broadcast( 'part', $context, $channel, "Requested by $src_nick" );
   
   return PLUGIN_EAT_ALL
@@ -120,19 +130,22 @@ sub Bot_public_cmd_part {
 ### OP / DEOP
 sub Bot_public_cmd_op {
   my ($self, $core) = splice @_, 0, 2;
-  my $msg     = ${ $_[0] };
+  my $msg = ${ $_[0] };
+
   my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
 
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
 
-  my $requiredlev = $pcfg->{Opts}->{Level_op} // 3;
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_op} // 3;
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
   
   my $target_usr = $msg->message_array->[0] // $msg->src_nick;
+  
   my $channel = $msg->channel;
+  
   broadcast( 'mode', $context, $channel, "+o $target_usr" );
   
   return PLUGIN_EAT_ALL
@@ -140,13 +153,14 @@ sub Bot_public_cmd_op {
 
 sub Bot_public_cmd_deop {
   my ($self, $core) = splice @_, 0, 2;
-  my $msg     = ${ $_[0] };
+  my $msg = ${ $_[0] };
+
   my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
 
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
 
-  my $requiredlev = $pcfg->{Opts}->{Level_op} // 3;
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_op} // 3;
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
@@ -163,18 +177,20 @@ sub Bot_public_cmd_deop {
 
 sub Bot_public_cmd_voice {
   my ($self, $core) = splice @_, 0, 2;
-  my $msg     = ${ $_[0] };
+  my $msg = ${ $_[0] };
+
   my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
 
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
 
-  my $requiredlev = $pcfg->{Opts}->{Level_voice} // 2;
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_voice} // 2;
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
   
   my $target_usr = $msg->message_array->[0] // $msg->src_nick;
+  
   my $channel = $msg->channel;
   
   broadcast( 'mode', $context, $channel, "+v $target_usr" );
@@ -184,18 +200,20 @@ sub Bot_public_cmd_voice {
 
 sub Bot_public_cmd_devoice {
   my ($self, $core) = splice @_, 0, 2;
-  my $msg     = ${ $_[0] };
+  my $msg = ${ $_[0] };
+
   my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
 
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
 
-  my $requiredlev = $pcfg->{Opts}->{Level_voice} // 2;
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_voice} // 2;
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
   
   my $target_usr = $msg->message_array->[0] // $msg->src_nick;
+  
   my $channel = $msg->channel;
   
   broadcast( 'mode', $context, $channel, "-v $target_usr" );
@@ -210,9 +228,9 @@ sub Bot_public_cmd_die {
   my $context  = $msg->context;
   my $src_nick = $msg->src_nick;
   
-  my $pcfg = $core->get_plugin_cfg($self) || {};
+  my $pcfg = plugin_cfg($self);
   
-  my $requiredlev = $pcfg->{Opts}->{Level_die} // 9999;
+  my $requiredlev = $pcfg->{PluginOpts}->{Level_die} || 9999;
   my $authed_lev  = $core->auth->level($context, $src_nick);
   
   return PLUGIN_EAT_ALL unless $authed_lev >= $requiredlev;
@@ -221,9 +239,8 @@ sub Bot_public_cmd_die {
 
   logger->warn("Shutdown requested; $src_nick ($auth_usr)");
 
-  $core->shutdown;
+  $core->shutdown
 }
-
 
 1;
 __END__
@@ -258,7 +275,6 @@ Levels for each command are specified in C<plugins.conf>:
   Module: Bot::Cobalt::Plugin::Master
   Opts:
     Level_die: 9999
-    Level_server: 9999
     Level_joinpart: 3
     Level_voice: 2
     Level_op: 3
@@ -266,7 +282,5 @@ Levels for each command are specified in C<plugins.conf>:
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Seen;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use 5.10.1;
 
@@ -423,7 +423,5 @@ The path to the SeenDB can be specified via C<plugins.conf>:
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut

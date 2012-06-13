@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC::Event::Topic;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use Moo;
 use strictures 1;
@@ -7,9 +7,19 @@ use Bot::Cobalt::Common qw/:types :string/;
 
 extends 'Bot::Cobalt::IRC::Event::Channel';
 
-has 'topic' => ( is => 'rw', isa => Str, required => 1 );
+has 'topic' => (
+  required => 1,
 
-has 'stripped' => (  is => 'ro', isa => Str, lazy => 1,
+	is  => 'rw',
+  isa => Str, 
+);
+
+has 'stripped' => (
+  lazy => 1,
+
+  is  => 'ro', 
+  isa => Str, 
+
   default => sub {
     strip_color( strip_formatting( $_[0]->topic ) )
   },

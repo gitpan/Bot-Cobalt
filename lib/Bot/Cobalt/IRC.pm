@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC;
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use 5.10.1;
 use strictures 1;
@@ -34,21 +34,38 @@ use POE qw/
 ## Bot::Cobalt::Common pulls the rest of these:
 use IRC::Utils qw/ parse_mode_line /;
 
-has 'NON_RELOADABLE' => ( is => 'ro', isa => Bool,
+has 'NON_RELOADABLE' => ( 
+  isa => Bool,
+  ## Well, really, it's sort-of unloadable.
+  ##  ... but life usually sucks when you do.
+  ## Call _set_NON_RELOADABLE if you really need to
+  is => 'rwp',
+
   default => sub { 1 },
 );
 
-has 'ircobjs' => ( is => 'rw', isa => HashRef, lazy => 1,
+## We keep references to our ircobjs; core tracks these also, 
+## but there is no guarantee that we're the only IRC plugin loaded.
+has 'ircobjs' => ( 
+  lazy => 1,
+  is   => 'rw', 
+  isa  => HashRef, 
+
   default => sub { {} },
 );
 
-has 'flood' => ( is => 'ro', isa => Object, lazy => 1,
+has 'flood' => (
+  is   => 'ro', 
+  isa  => Object, 
+  lazy => 1,
+  
   predicate => 'has_flood',
+  
   default => sub { 
     my ($self) = @_;
-    my $cfg = core->get_core_cfg;
-    my $count = $cfg->{Opts}->{FloodCount} || 5;
-    my $secs  = $cfg->{Opts}->{FloodTime}  || 6;
+    my $ccfg  = core->get_core_cfg;
+    my $count = $ccfg->{Opts}->{FloodCount} || 5;
+    my $secs  = $ccfg->{Opts}->{FloodTime}  || 6;
     Bot::Cobalt::IRC::FloodChk->new(
       count => $count,
       in    => $secs,
@@ -56,12 +73,18 @@ has 'flood' => ( is => 'ro', isa => Object, lazy => 1,
   },
 );
 
+## Outgoing IRC traffic is handled by UserEvents role:
+with 'Bot::Cobalt::IRC::Role::UserEvents';
+
+## Administrative commands:
+with 'Bot::Cobalt::IRC::Role::AdminCmds';
+
 sub Cobalt_register {
   my ($self, $core) = splice @_, 0, 2;
 
   ## register for events
-  $core->plugin_register($self, 'SERVER',
-    [ 'all' ],
+  register($self, 'SERVER',
+    'all',
   );
 
   broadcast( 'initialize_irc' );
@@ -80,23 +103,13 @@ sub Cobalt_register {
 sub Cobalt_unregister {
   my ($self, $core) = splice @_, 0, 2;
 
-  logger->info("Unregistering IRC plugin");
+  logger->info("Unregistering and dropping servers.");
 
-  ## shutdown IRCs
   for my $context ( keys %{ $self->ircobjs } ) {
-    logger->debug("shutting down irc: $context");
-
-    ## clear auths for this context
-    $core->auth->clear($context);
-    ## and ignores:
-    $core->ignore->clear($context);
-
-    my $irc = delete $self->ircobjs->{$context};
-    $core->Servers->{$context}->clear_irc;
-    $irc->call('shutdown', "IRC component shut down");
+    $self->_clear_context($context);
   }
   
-  logger->debug("IRC shut down");
+  logger->debug("Clean unload");
   
   return PLUGIN_EAT_NONE
 }
@@ -104,34 +117,91 @@ sub Cobalt_unregister {
 sub Bot_initialize_irc {
   my ($self, $core) = splice @_, 0, 2;
 
-  my $cfg  = $core->get_plugin_cfg( $self );
+  my $pcfg = $core->get_plugin_cfg( $self );
+  my $ccfg = $core->get_core_cfg;
 
   ## The IRC: directive in cobalt.conf provides context 'Main'
   ## (This will override any 'Main' specified in multiserv.conf)
-  my $corecfg = $core->get_core_cfg;
-  my $main_net = $corecfg->{IRC};
-  $cfg->{Networks}->{Main} = $main_net;
-  SERVER: for my $context (keys %{ $cfg->{Networks} } ) {
-    my $thiscfg = $cfg->{Networks}->{$context};
-    
-    unless (ref $thiscfg eq 'HASH' && scalar keys %$thiscfg) {
-      logger->warn("Missing configuration: context $context");
-      next SERVER
-    }
-    
-    next if defined $thiscfg->{Enabled} and $thiscfg->{Enabled} == 0;
-    
-    my $server = $thiscfg->{ServerAddr} // next SERVER;
-    my $port   = $thiscfg->{ServerPort} // 6667;
-    my $nick   = $thiscfg->{Nickname} // 'cobalt2' ;
-    my $usessl = $thiscfg->{UseSSL} ? 1 : 0;
-    my $use_v6 = $thiscfg->{IPv6}   ? 1 : 0;
-    
-    logger->info(
-      "Spawning IRC for $context ($nick on ${server}:${port})"
-    );
+  $pcfg->{Networks}->{Main} = $ccfg->{IRC};
 
-    my %spawn_opts = (
+  my $active_contexts;
+  for my $context (keys %{ $pcfg->{Networks} } ) {
+    ## Counter is solely to provide an informative error if cfg is fubar:
+    ++$active_contexts;
+
+    next if defined $pcfg->{Networks}->{$context}->{Enabled}
+         and $pcfg->{Networks}->{$context}->{Enabled} == 0;
+
+    logger->debug("Found configured context $context");
+
+    broadcast( 'ircplug_connect', $context );
+  }
+  
+  unless ($active_contexts) {
+    logger->error("No contexts configured/enabled!");
+  }
+
+  return PLUGIN_EAT_ALL
+}
+
+sub Bot_ircplug_connect {
+  my ($self, $core) = splice @_, 0, 2;
+  my $context = ${ $_[0] };
+
+  ## Spawn an IRC Component and a Session to manage it.
+  ##
+  ## Called for each configured context.
+  ##
+  ## The sessions call the same object with different contexts in HEAP;
+  ## the handlers do some processing and relay the event from the 
+  ## PoCo::IRC syndicator to the Bot::Cobalt::Core pipeline.
+
+  if ($core->Servers->{$context}) {
+    if ( $core->Servers->{$context}->has_irc ) {
+      $core->Servers->{$context}->irc->call('shutdown',
+        'Reconnecting'
+      );
+      
+      $core->Servers->{$context}->clear_irc;
+    }
+
+    ## Just in case ...
+    $core->auth->clear($context);
+    $core->ignore->clear($context);
+  }
+
+  logger->debug("ircplug_connect issued for $context");
+  
+  my $pcfg = core->get_plugin_cfg( $self );
+  
+  my $thiscfg = $pcfg->{Networks}->{$context};
+  
+  unless (ref $thiscfg eq 'HASH' && keys %$thiscfg) {
+    logger->error("Connect issued for context without valid cfg ($context)");
+    return PLUGIN_EAT_ALL
+  }
+
+  my $server = $thiscfg->{ServerAddr};
+  
+  unless (defined $server) {
+    logger->error("Context $context has no defined ServerAddr");
+    return PLUGIN_EAT_ALL
+  }
+
+  my $port   = $thiscfg->{ServerPort} || 6667;
+  my $nick   = $thiscfg->{Nickname}   || 'cobalt2' ;
+
+  my $usessl = $thiscfg->{UseSSL} ? 1 : 0;
+  my $use_v6 = $thiscfg->{IPv6}   ? 1 : 0;
+
+  logger->info(
+    "Spawning IRC for $context ($nick on $server : $port)"
+  );
+  logger->debug(
+    "Context $context; SSL $usessl ; V6 $use_v6"
+  );
+
+  my %spawn_opts = (
       alias    => $context,
       nick     => $nick,
       username => $thiscfg->{Username} // 'cobalt',
@@ -140,68 +210,112 @@ sub Bot_initialize_irc {
       port     => $port,
       useipv6  => $use_v6,
       usessl   => $usessl,
-      raw => 0,
-    );
-  
-    my $localaddr = $thiscfg->{BindAddr} || undef;
-    $spawn_opts{localaddr} = $localaddr if $localaddr;
-    my $server_pass = $thiscfg->{ServerPass};
-    $spawn_opts{password} = $server_pass if defined $server_pass;
-  
-    my $irc = POE::Component::IRC::State->spawn(
-      %spawn_opts,
-    ) or logger->error("(spawn: $context) poco-irc error: $!");
+      raw      => 0,
+  );
 
-    my $server_obj = Bot::Cobalt::IRC::Server->new(
-      name => $server,
-      irc  => $irc,
-      prefer_nick => $nick,
-    );
-    
-    core->Servers->{$context} = $server_obj;
-    $self->ircobjs->{$context} = $irc;
-  
-    POE::Session->create(
-      ## track this session's context name in HEAP
-      heap =>  { Context => $context },
-      object_states => [
-        $self => [
-          '_start',
-  
-          'irc_001',
-          'irc_connected',
-          'irc_disconnected',
-          'irc_error',
-          'irc_socketerr',
-  
-          'irc_chan_sync',
-  
-          'irc_public',
-          'irc_msg',
-          'irc_notice',
-          'irc_ctcp_action',
-  
-          'irc_kick',
-          'irc_mode',
-          'irc_topic',
-          'irc_invite',
+  $spawn_opts{localaddr} = $thiscfg->{BindAddr}
+    if defined $thiscfg->{BindAddr};
 
-          'irc_nick',
-          'irc_join',
-          'irc_part',
-          'irc_quit',
-        ],
-      ],
-    );
-  
-    logger->debug("IRC Session created");
-  } ## SERVER
+  $spawn_opts{password} = $thiscfg->{ServerPass}
+    if defined $thiscfg->{ServerPass};
 
+  my $irc = POE::Component::IRC::State->spawn(
+    %spawn_opts
+  ) or logger->error("IRC component spawn() for $context failed")
+    and return PLUGIN_EAT_ALL;
+
+  my $server_obj = Bot::Cobalt::IRC::Server->new(
+    name => $server,
+    irc  => $irc,
+    prefer_nick => $nick,
+  );
+
+  $core->Servers->{$context} = $server_obj;
+  $self->ircobjs->{$context} = $irc;
+
+  ## Attempt to spin up a session.
+  if ( $self->_spawn_for_context($context) ) {
+    logger->debug("Successful session creation for context $context");
+  }
+  
   return PLUGIN_EAT_ALL
 }
 
+sub _spawn_for_context {
+  my ($self, $context) = @_;
 
- ### IRC EVENTS ###
+  POE::Session->create(
+    ## track this session's context name in HEAP
+    heap =>  { Context => $context },
+    object_states => [
+      $self => [ qw/
+        _start
+
+        irc_001
+        irc_connected
+        irc_disconnected
+        irc_error
+        irc_socketerr
+
+        irc_chan_sync
+
+        irc_public
+        irc_msg
+        irc_notice
+        irc_ctcp_action
+
+        irc_kick
+        irc_mode
+        irc_topic
+        irc_invite
+
+        irc_nick
+        irc_join
+        irc_part
+        irc_quit
+      / ],
+    ],
+  ) or
+     logger->error("Session creation failed for context $context")
+     and return;
+}
+
+sub Bot_ircplug_disconnect {
+  my ($self, $core) = splice @_, 0, 2;
+  my $context = ${ $_[0] };
+  
+  logger->debug("ircplug_disconnect event caught for $context");
+
+  $self->_clear_context($context);
+  
+  return PLUGIN_EAT_ALL
+}
+
+sub _clear_context {
+  my ($self, $context) = @_;
+  ## Method called out of both _unregister and ircplug_disconnect
+  ## Handles actual shutdown/cleanup for a particular context
+
+  logger->debug("_clear_context called for $context");
+
+  ## clear auths for this context
+  core->auth->clear($context);
+  ## and ignores:
+  core->ignore->clear($context);
+
+  core->Servers->{$context}->clear_irc;
+
+  my $irc = delete $self->ircobjs->{$context}
+    or logger->error(
+       "ircplug_disconnect called for nonexistant context $context"
+     ) and return PLUGIN_EAT_ALL;
+
+  $irc->call('shutdown', "IRC component shut down");
+
+  logger->info("Called shutdown for context $context");
+  
+  return $context
+}
 
 sub _start {
   my ($self, $kernel, $heap) = @_[OBJECT, KERNEL, HEAP];
@@ -209,18 +323,16 @@ sub _start {
   my $context = $heap->{Context};
   my $irc     = $self->ircobjs->{$context};
 
-  my $cfg  = core->get_core_cfg;
+  my $ccfg = core->get_core_cfg;
   my $pcfg = core->get_plugin_cfg($self);
-
-  $pcfg->{Networks}->{Main} = $cfg->{IRC};
 
   logger->debug("pocoirc plugin load");
 
   ## autoreconn plugin:
   my %connector;
 
-  $connector{delay}     = $cfg->{Opts}->{StonedCheck}    || 300;
-  $connector{reconnect} = $cfg->{Opts}->{ReconnectDelay} || 60;
+  $connector{delay}     = $ccfg->{Opts}->{StonedCheck}    || 300;
+  $connector{reconnect} = $ccfg->{Opts}->{ReconnectDelay} || 60;
 
   $irc->plugin_add('Connector' =>
     POE::Component::IRC::Plugin::Connector->new(
@@ -231,7 +343,7 @@ sub _start {
   ## attempt to regain primary nickname:
   $irc->plugin_add('NickReclaim' =>
     POE::Component::IRC::Plugin::NickReclaim->new(
-        poll => $cfg->{Opts}->{NickRegainDelay} // 30,
+        poll => $ccfg->{Opts}->{NickRegainDelay} // 30,
       ), 
     );
 
@@ -254,11 +366,11 @@ sub _start {
 
   $irc->plugin_add('AutoJoin' =>
     POE::Component::IRC::Plugin::AutoJoin->new(
-      Channels => \%ajoin,
-      RejoinOnKick => $cfg->{Opts}->{Chan_RetryAfterKick} // 1,
-      Rejoin_delay => $cfg->{Opts}->{Chan_RejoinDelay}    // 5,
-      NickServ_delay    => $cfg->{Opts}->{Chan_NickServDelay} // 1,
-      Retry_when_banned => $cfg->{Opts}->{Chan_RetryAfterBan} // 60,
+      Channels     => \%ajoin,
+      RejoinOnKick => $ccfg->{Opts}->{Chan_RetryAfterKick} // 1,
+      Rejoin_delay => $ccfg->{Opts}->{Chan_RejoinDelay}    // 5,
+      NickServ_delay    => $ccfg->{Opts}->{Chan_NickServDelay} // 1,
+      Retry_when_banned => $ccfg->{Opts}->{Chan_RetryAfterBan} // 60,
     ),
   );
 
@@ -279,14 +391,17 @@ sub _start {
   logger->debug("irc component connect issued");
 }
 
+
+### IRC event 'relay' to our pipeline.
+
 sub irc_connected {
   my ($self, $kernel, $server) = @_[OBJECT, KERNEL, ARG0];
 
-  ## NOTE:
   ##  irc_connected indicates we're connected to the server
   ##  however, irc_001 is the server welcome message
   ##  irc_connected happens before auth, no guarantee we can send yet.
   ##  (we don't broadcast Bot_connected until irc_001)
+  logger->debug("Received irc_connected for $server");
 }
 
 sub irc_001 {
@@ -296,10 +411,11 @@ sub irc_001 {
   my $irc     = $self->ircobjs->{$context};
   
   ## set up some stuff relevant to our server context:
-  irc_context($context)->connected( 1 );
-  irc_context($context)->connectedat( time() );
+  irc_context($context)->connected(1);
+  irc_context($context)->connectedat( time );
   irc_context($context)->maxmodes( $irc->isupport('MODES') // 4 );
   irc_context($context)->maxtargets( $irc->isupport('MAXTARGETS') // 4 );
+
   ## irc comes with odd case-mapping rules.
   ## []\~ are considered uppercase equivalents of {}|^
   ##
@@ -341,8 +457,9 @@ sub irc_001 {
 
   my $server = $irc->server_name;
   logger->info("Connected: $context: $server");
+
   ## send a Bot_connected event with context and visible server name:
-  core->send_event( 'connected', $context, $server );
+  broadcast( 'connected', $context, $server );
 }
 
 sub irc_disconnected {
@@ -353,7 +470,7 @@ sub irc_disconnected {
   
   if ( irc_context($context) ) {
     irc_context($context)->connected(0);
-    core->send_event( 'disconnected', $context, $server );
+    broadcast( 'disconnected', $context, $server );
   }
 }
 
@@ -365,7 +482,7 @@ sub irc_socketerr {
   
   if ( irc_context($context) ) {
     irc_context($context)->connected(0);
-    core->send_event( 'server_error', $context, $err );
+    broadcast( 'server_error', $context, $err );
   }
 }
 
@@ -377,7 +494,7 @@ sub irc_error {
 
   if ( irc_context($context) ) {
     irc_context($context)->connected(0);
-    core->send_event( 'server_error', $context, $reason );
+    broadcast( 'server_error', $context, $reason );
   }
 }
 
@@ -441,12 +558,22 @@ sub irc_public {
   ## Bot_public_msg / Bot_public_cmd_$cmd  
   ## FloodChk cmds and highlights
   if (my $cmd = $msg_obj->cmd) {
-    return if $floodchk->($context, $src);
-    broadcast( 'public_cmd_'.$cmd, $msg_obj);
+
+    $floodchk->($context, $src) ?
+      return
+      : broadcast( 'public_cmd_'.$cmd, $msg_obj);
+
   } elsif ($msg_obj->highlight) {
-    return if $floodchk->($context, $src);
-    broadcast( 'public_msg', $msg_obj);    
+
+    $floodchk->($context, $src) ?
+      return
+      : broadcast( 'public_msg', $msg_obj);
+
   } else {
+    ## In the interests of keeping memory usage low on a 
+    ## large channel, we don't flood-check every incoming public 
+    ## message; plugins that respond to these may want to create 
+    ## their own Bot::Cobalt::IRC::FloodChk
     broadcast( 'public_msg', $msg_obj );
   }
 }
@@ -606,13 +733,13 @@ sub irc_nick {
 
   ## see if it's our nick that changed, send event:
   if ($new eq $irc->nick_name) {
-    core->send_event( 'self_nick_changed', $context, $new );
+    broadcast( 'self_nick_changed', $context, $new );
     return
   }
 
   my $nchg = Bot::Cobalt::IRC::Event::Nick->new(
-    context => $context,
-    src     => $src,
+    context  => $context,
+    src      => $src,
     new_nick => $new,
     channels => $common,
   );
@@ -707,235 +834,19 @@ sub irc_invite {
 }
 
 
- ### COBALT EVENTS ###
-
-## FIXME move these out to sub-plugin / sub-session
-
-sub Bot_send_message { Bot_message(@_) }
-sub Bot_message {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $target  = ${$_[1]};
-  my $txt     = ${$_[2]};
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $target
-           && defined $txt
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }
-  
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-
-  ## Issue USER event Outgoing_message for output filters
-  my @msg = ( $context, $target, $txt );
-  my $eat = $core->send_user_event( 'message', \@msg );
-  unless ($eat == PLUGIN_EAT_ALL) {
-    my ($target, $txt) = @msg[1,2];
-    $self->ircobjs->{$context}->yield(privmsg => $target => $txt);
-    broadcast( 'message_sent', $context, $target, $txt );
-    ++$core->State->{Counters}->{Sent};
-  }
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_send_notice { Bot_notice(@_) }
-sub Bot_notice {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $target  = ${$_[1]};
-  my $txt     = ${$_[2]};
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $target
-           && defined $txt
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }
-
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-
-  ## USER event Outgoing_notice
-  my @notice = ( $context, $target, $txt );
-  my $eat = $core->send_user_event( 'notice', \@notice );
-  unless ($eat == PLUGIN_EAT_ALL) {
-    my ($target, $txt) = @notice[1,2];
-    $self->ircobjs->{$context}->yield(notice => $target => $txt);
-    broadcast( 'notice_sent', $context, $target, $txt );
-  }
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_send_action { Bot_action(@_) }
-sub Bot_action {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $target  = ${$_[1]};
-  my $txt     = ${$_[2]};
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $target
-           && defined $txt
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }
-
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-  
-  ## USER event Outgoing_ctcp (CONTEXT, TYPE, TARGET, TEXT)
-  my @ctcp = ( $context, 'ACTION', $target, $txt );
-  my $eat = $core->send_user_event( 'ctcp', \@ctcp );
-  unless ($eat == PLUGIN_EAT_ALL) {
-    my ($target, $txt) = @ctcp[2,3];
-    $self->ircobjs->{$context}->yield(ctcp => $target => 'ACTION '.$txt );
-    broadcast( 'ctcp_sent', $context, 'ACTION', $target, $txt );
-  }
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_topic {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $channel = ${$_[1]};
-  my $topic   = defined $_[2] ? ${$_[2]} : "" ;
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $channel
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }
-
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-
-  $self->irc->yield( 'topic', $channel, $topic );
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_mode {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $target  = ${$_[1]}; ## channel or self normally
-  my $modestr = ${$_[2]}; ## modes + args
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $target
-           && defined $modestr
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }
-
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-
-  my ($mode, @args) = split ' ', $modestr;
-
-  $self->ircobjs->{$context}->yield( 'mode', $target, $mode, @args );
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_kick {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $channel = ${$_[1]};
-  my $target  = ${$_[2]};
-  my $reason  = defined $_[3] ? ${$_[3]} : 'Kicked';
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $channel
-           && $target
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }      
-
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-
-  $self->ircobjs->{$context}->yield( 'kick', $channel, $target, $reason );
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_join {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $channel = ${$_[1]};
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $channel
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }
-
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-
-  $self->ircobjs->{$context}->yield( 'join', $channel );
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_part {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $channel = ${$_[1]};
-  my $reason  = defined $_[2] ? ${$_[2]} : 'Leaving' ;
-
-  unless ( $context
-           && $self->ircobjs->{$context}
-           && $channel
-  ) { 
-    return PLUGIN_EAT_NONE 
-  }      
-
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-
-  $self->ircobjs->{$context}->yield( 'part', $channel, $reason );
-
-  return PLUGIN_EAT_NONE
-}
-
-sub Bot_send_raw {
-  my ($self, $core) = splice @_, 0, 2;
-  my $context = ${$_[0]};
-  my $raw     = ${$_[1]};
-
-  unless ( $context && $self->ircobjs->{$context} && $raw ) {
-    return PLUGIN_EAT_NONE
-  }
-  
-  return PLUGIN_EAT_NONE unless $core->is_connected($context);
-  
-  $self->ircobjs->{$context}->yield( 'quote', $raw );
-
-  broadcast( 'raw_sent', $context, $raw );
-
-  return PLUGIN_EAT_NONE
-}
+### Internals.
 
 sub Bot_rehashed {
   my ($self, $core) = splice @_, 0, 2;
   my $type = ${ $_[0] };
   
-  ## reset AutoJoin plugin instances
-  logger->info("Rehash received, resetting autojoins");
-
+  logger->info("Rehash received, resetting ajoins");
   $self->_reset_ajoins;
-
-  ## FIXME rehash nickservids if needed?
+  
+  ## FIXME nickservid rehash if needed
   
   return PLUGIN_EAT_NONE
 }
-
-### Internals.
 
 sub Bot_ircplug_chk_floodkey_expire {
   my ($self, $core) = splice @_, 0, 2;
@@ -1023,7 +934,7 @@ sub _reset_ajoins {
         Channels => \%ajoin,
         RejoinOnKick => $corecf->{Opts}->{Chan_RetryAfterKick} // 1,
         Rejoin_delay => $corecf->{Opts}->{Chan_RejoinDelay}    // 5,
-        NickServ_delay => $corecf->{Opts}->{Chan_NickServDelay} // 1,
+        NickServ_delay    => $corecf->{Opts}->{Chan_NickServDelay} // 1,
         Retry_when_banned => $corecf->{Opts}->{Chan_RetryAfterBan} // 60,
       ),
     );
@@ -1040,14 +951,18 @@ __END__
 
 =head1 NAME
 
-Bot::Cobalt::IRC -- Standard Cobalt IRC-bridging plugin
+Bot::Cobalt::IRC -- Bot::Cobalt IRC bridge
 
 =head1 DESCRIPTION
 
-Incoming and outgoing IRC activity is handled just like any other 
-plugin pipeline event.
+For a description of the commands provided by the IRC bridge, see 
+L<Bot::Cobalt::IRC::Role::AdminCmds>.
 
-The core IRC plugin provides a multi-server IRC interface via
+This is the core plugin providing IRC functionality to 
+L<Bot::Cobalt>; incoming and outgoing IRC activity 
+is handled just like any other plugin pipeline event.
+
+This core IRC plugin provides a multi-server IRC interface via
 L<POE::Component::IRC>. Any other IRC plugins should follow this pattern 
 and provide a compatible event interface.
 
@@ -1057,9 +972,9 @@ plugins and reduces code redundancy.
 
 Arguments may vary by event. See below.
 
-(If you're trying to write Cobalt plugins, you probably want to start 
+If you're trying to write Cobalt plugins, you probably want to start 
 with L<Bot::Cobalt::Manual::Plugins> -- this is a reference for IRC-related 
-events specifically.)
+events specifically.
 
 
 =head1 EMITTED EVENTS
@@ -1112,9 +1027,6 @@ The IRC component will provide a maybe-not-useful reason:
   my ($self, $core) = splice @_, 0, 2;
   my $context = ${$_[0]};
   my $reason  = ${$_[1]};
-
-... Maybe you're zlined. :)
-
 
 
 =head2 Incoming message events
@@ -1641,6 +1553,20 @@ A reason can be supplied:
 There is no guarantee that we were present on the channel in the 
 first place.
 
+=head2 Server control
+
+=head3 ircplug_connect
+
+Takes the name of a configured context.
+
+Attempts to initialize a connection for the named context (if the 
+configuration can be found).
+
+This interface is evolving and subject to change.
+
+=head3 ircplug_disconnect
+
+Same arguments and caveats as ircplug_connect.
 
 =head1 SEE ALSO
 
@@ -1668,7 +1594,5 @@ L<Bot::Cobalt::Manual::Plugins>
 =head1 AUTHOR
 
 Jon Portnoy <avenj@cobaltirc.org>
-
-L<http://www.cobaltirc.org>
 
 =cut
