@@ -1,5 +1,5 @@
 package Bot::Cobalt::Conf;
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 ## Bot::Cobalt::Conf
 ## Looks for the following YAML confs:
@@ -41,14 +41,12 @@ sub _read_conf {
   ## deserialize a YAML conf
   my ($self, $relative_to_etc) = @_;
 
-  unless ($relative_to_etc) {
-    carp "no path specified in _read_conf?";
-    return
-  }
+  confess "no path specified in _read_conf"
+    unless defined $relative_to_etc;
 
   my $etc = $self->etc;
 
-  warn "_read_conf; using etcdir $etc" if $self->debug;
+  warn "_read_conf; using etcdir $etc\n" if $self->debug;
 
   unless (-e $self->etc) {
     carp "cannot find etcdir: $self->etc";
@@ -60,7 +58,7 @@ sub _read_conf {
     File::Spec->splitpath($relative_to_etc)
   );
   
-  warn "_read_conf; reading conf path $path" if $self->debug;
+  warn "_read_conf; reading conf path $path\n" if $self->debug;
 
   unless (-e $path) {
     carp "cannot find $path at $self->etc";
@@ -87,24 +85,95 @@ sub _read_conf {
 
 sub _read_core_cobalt_conf {
   my ($self) = @_;
-  $self->_read_conf("cobalt.conf");
+  my $thawed = $self->_read_conf("cobalt.conf");
+  
+  confess "Conf; cobalt.conf; no IRC configuration found"
+    unless ref $thawed->{IRC} eq 'HASH'
+    and keys %{ $thawed->{IRC} };
+
+  warn "Conf; cobalt.conf; IRC->ServerAddr not specified\n"
+    unless defined $thawed->{IRC}->{ServerAddr};
+  
+  return $thawed
 }
 
 sub _read_core_channels_conf {
   my ($self) = @_;
-  $self->_read_conf("channels.conf");
+  
+  my $thawed = $self->_read_conf("channels.conf");
+  
+  warn "Conf; channels.conf; did not find configured channels for Main\n"
+    unless ref $thawed->{Main} eq 'HASH'
+    and keys %{ $thawed->{Main} };
+
+  CONTEXT: for my $context (keys %$thawed) {
+    my $ctxt_cfg = $thawed->{$context};
+
+    unless (ref $ctxt_cfg eq 'HASH') {
+      confess 
+        "Conf; channels.conf; cfg for context $context is not a hash";
+    }
+
+    CHAN: for my $channel (keys %$ctxt_cfg) {
+      unless (ref $ctxt_cfg->{$channel} eq 'HASH') {
+        warn "Conf; channels.conf; ",
+          "cfg for $channel on $context is not a hash\n";
+        $ctxt_cfg->{$channel} = {};
+      }
+    } ## CHAN
+  
+  }
+
+  return $thawed
 }
 
 sub _read_core_plugins_conf {
   my ($self) = @_;
-  $self->_read_conf("plugins.conf");
+  my $thawed = $self->_read_conf("plugins.conf");
+  
+  my @accepted_keys = qw/
+    Config
+    Module
+    NoAutoLoad
+    Opts
+    Priority
+  /;
+  
+  warn "Conf; plugins.conf; no plugins found\n"
+    unless keys %$thawed;
+  
+  for my $plugin (keys %$thawed) {
+    my $this_plug_cf = $thawed->{$plugin};
+    
+    confess "Conf; plugins.conf; cfg for $plugin is not a hash"
+      unless ref $this_plug_cf eq 'HASH';
+    
+    confess "Conf; plugins.conf; no Module directive for $plugin"
+      unless $this_plug_cf->{Module};
+    
+    confess "Conf; plugins.conf; $plugin - Priority must be numeric"
+      if defined $this_plug_cf->{Priority}
+      and $this_plug_cf->{Priority} !~ /^\d+$/;
+
+    confess "Conf; plugins.conf; $plugin - Opts must be a hash"
+      if defined $this_plug_cf->{Opts}
+      and ref $this_plug_cf->{Opts} ne 'HASH';
+
+    for my $directive (keys %$this_plug_cf) {
+      warn "Conf; plugins.conf; unknown directive $directive\n"
+        unless $directive ~~ @accepted_keys;
+    }
+  }
+  
+  return $thawed
 }
 
 sub _read_plugin_conf {
   ## read a conf for a specific plugin
   ## must be defined in plugins.conf when this method is called
-  ## IMPORTANT: re-reads plugins.conf per call unless specified
   my ($self, $plugin, $plugins_conf) = @_;
+
+  ## re-reads plugins.conf per call unless specified:
   $plugins_conf = ref $plugins_conf eq 'HASH' ?
                   $plugins_conf
                   : $self->_read_core_plugins_conf ;
@@ -160,14 +229,14 @@ sub read_cfg {
   if ($core_cf && ref $core_cf eq 'HASH') {
     $conf->{core} = $core_cf;
   } else {
-    croak "Failed to load cobalt.conf";
+    confess "Failed to load cobalt.conf";
   }
 
   my $chan_cf = $self->_read_core_channels_conf;
   if ($chan_cf && ref $chan_cf eq 'HASH') {
     $conf->{channels} = $chan_cf;
   } else {
-    carp "Failed to load channels.conf, using empty hash";
+    carp "Conf; Failed to load channels.conf, using empty hash";
     ## busted cf, set up an empty context
     $conf->{channels} = { Main => {} } ;
   }
@@ -176,7 +245,7 @@ sub read_cfg {
   if ($plug_cf && ref $plug_cf eq 'HASH') {
     $conf->{plugins} = $plug_cf;
   } else {
-    carp "Failed to load plugins.conf, using empty hash";
+    carp "Conf; Failed to load plugins.conf, using empty hash";
     $conf->{plugins} = { } ;
   }
 

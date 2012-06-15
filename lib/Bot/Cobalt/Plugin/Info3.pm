@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Info3;
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 use 5.12.0;
 

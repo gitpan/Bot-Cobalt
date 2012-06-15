@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core;
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 ## This is the core Syndicator singleton.
 
@@ -166,7 +166,7 @@ extends 'POE::Component::Syndicator';
 with 'Bot::Cobalt::Lang';
 with 'Bot::Cobalt::Core::Role::Singleton';
 with 'Bot::Cobalt::Core::Role::EasyAccessors';
-with 'Bot::Cobalt::Core::Role::Unloader';
+with 'Bot::Cobalt::Core::Role::Loader';
 with 'Bot::Cobalt::Core::Role::Timers';
 with 'Bot::Cobalt::Core::Role::IRC';
 
@@ -234,11 +234,10 @@ sub syndicator_started {
   $kernel->sig('TERM' => 'shutdown');
   $kernel->sig('HUP'  => 'sighup');
 
-  $self->log->info('-> '.__PACKAGE__.' '.$self->version);
+  $self->log->info(''.__PACKAGE__.' '.$self->version);
  
-  ## add configurable plugins
-  $self->log->info("-> Initializing plugins . . .");
-
+  $self->log->info("--> Initializing plugins . . .");
+  
   my $i = 0;
   my @plugins = sort {
     ($self->cfg->{plugins}->{$b}->{Priority}//1)
@@ -247,22 +246,15 @@ sub syndicator_started {
                 } keys %{ $self->cfg->{plugins} };
 
   for my $plugin (@plugins)
-  { 
-    next if $self->cfg->{plugins}->{$plugin}->{NoAutoLoad};
+  {
+    my $this_plug_cf = $self->cfg->{plugins}->{$plugin};
+
+    next if $this_plug_cf->{NoAutoLoad};
+
+    my $obj = $self->load_plugin($plugin);
     
-    my $module = $self->cfg->{plugins}->{$plugin}->{Module};
-    
-    {
-      local $@;
-      eval "require $module";
-      if ($@) {
-        $self->log->warn("Could not load $module: $@");
-        $self->unloader_cleanup($module);
-        next 
-      }
-    }
-    
-    my $obj = $module->new();
+    ## load_plugin will have thrown an error, skip:
+    next unless $obj;
 
     $self->PluginObjects->{$obj} = $plugin;
 
@@ -270,12 +262,13 @@ sub syndicator_started {
       $self->log->error("plugin_add failure for $plugin");
 
       delete $self->PluginObjects->{$obj};
-      $self->unloader_cleanup($module);
+      
+      $self->unloader_cleanup(
+        $this_plug_cf->{Module}
+      );
 
       next
     }
-
-    $self->is_reloadable($plugin, $obj);
 
     $i++;
   }
@@ -435,7 +428,7 @@ L<Bot::Cobalt::Core::Role::Timers>
 
 =item *
 
-L<Bot::Cobalt::Core::Role::Unloader>
+L<Bot::Cobalt::Core::Role::Loader>
 
 =back
 
