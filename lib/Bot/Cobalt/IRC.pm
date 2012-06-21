@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strictures 1;
@@ -123,12 +123,18 @@ sub Bot_initialize_irc {
   ## The IRC: directive in cobalt.conf provides context 'Main'
   ## (This will override any 'Main' specified in multiserv.conf)
   $pcfg->{Networks}->{Main} = $ccfg->{IRC};
+  
+  if (exists $pcfg->{Networks}->{'-ALL'}) {
+    ## Reserved by core Auth plugin
+    logger->error("-ALL is not a valid context name, disregarding.");
+    delete $pcfg->{Networks}->{'-ALL'}
+  }
 
   my $active_contexts;
   for my $context (keys %{ $pcfg->{Networks} } ) {
     ## Counter is solely to provide an informative error if cfg is fubar:
     ++$active_contexts;
-
+    
     next if defined $pcfg->{Networks}->{$context}->{Enabled}
          and $pcfg->{Networks}->{$context}->{Enabled} == 0;
 
@@ -219,9 +225,8 @@ sub Bot_ircplug_connect {
   $spawn_opts{password} = $thiscfg->{ServerPass}
     if defined $thiscfg->{ServerPass};
 
-  my $irc = POE::Component::IRC::State->spawn(
-    %spawn_opts
-  ) or logger->error("IRC component spawn() for $context failed")
+  my $irc = POE::Component::IRC::State->spawn(%spawn_opts) 
+    or logger->error("IRC component spawn() for $context failed")
     and return PLUGIN_EAT_ALL;
 
   my $server_obj = Bot::Cobalt::IRC::Server->new(
@@ -1217,9 +1222,9 @@ The trick to parsing modes is determining whether or not they have args
 that need to be pulled out.
 You can walk each individual mode and handle known types:
 
-  for my $mode (@modes) {
-    given ($mode) {
-      next when /[cimnpstCMRS]/; # oftc-hybrid/bc6 param-less modes
+  MODE: for my $mode (@modes) {
+    for ($mode) {
+      next MODE when /[cimnpstCMRS]/; # oftc-hybrid/bc6 param-less modes
       when ("l") {  ## limit mode has an arg
         my $limit = shift @args;
       }

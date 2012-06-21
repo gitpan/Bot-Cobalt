@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Extras::CPAN;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strictures 1;
@@ -14,7 +14,10 @@ use Module::CoreList;
 
 use Try::Tiny;
 
-sub new { bless {}, shift }
+## FIXME cachedb?
+sub CACHE () { 0 }
+
+sub new { bless [undef], shift }
 
 sub Cobalt_register {
   my ($self, $core) = splice @_, 0, 2;
@@ -25,8 +28,6 @@ sub Cobalt_register {
     'mcpan_plug_resp_recv',
   );
   
-  ## FIXME cachedb ?
-
   logger->info("Loaded: !cpan");
   
   return PLUGIN_EAT_NONE
@@ -78,8 +79,7 @@ sub Bot_public_cmd_cpan {
   my ($self, $core) = splice @_, 0, 2;
   my $msg = ${ $_[0] };
   
-  my $cmd  = $msg->message_array->[0];
-  my $dist = $msg->message_array->[1];
+  my ($cmd, $dist) = @{ $msg->message_array };
 
   unless ($cmd) {
     broadcast( 'message',
@@ -107,7 +107,7 @@ sub Bot_public_cmd_cpan {
     Link    => 'http://www.metacpan.org'.$url,
   };
   
-  given ( lc($cmd||'') ) {
+  for ( lc($cmd||'') ) {
 
     ## Get latest vers / date and link
     $hints->{Type} = 'latest'   when [qw/latest release/];
@@ -215,7 +215,7 @@ sub Bot_mcpan_plug_resp_recv {
 
   my $prefix = color('bold', 'mCPAN');
   
-  given ($type) {
+  for ($type) {
     
     when ("abstract") {
       my $abs  = $d_hash->{abstract} || 'No abstract available.';
@@ -251,6 +251,10 @@ sub Bot_mcpan_plug_resp_recv {
         $prefix, $dist,
         $tests{pass}, $tests{fail}, $tests{na}, $tests{unknown}
       );
+    }
+    
+    default {
+      logger->error("BUG; fell through in response handler");
     }
   
   }

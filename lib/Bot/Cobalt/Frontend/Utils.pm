@@ -1,5 +1,5 @@
 package Bot::Cobalt::Frontend::Utils;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strictures 1;
@@ -39,13 +39,17 @@ sub ask_question {
   
   my $print_and_grab = sub {
     print "$question ";
+
     if (defined $default) {
       print "[$default] ";
     } else {
       print "> ";
     }
+
     $input = <STDIN>;
+
     chomp($input);
+
     $input = $default if defined $default and $input eq '';
     $input
   };
@@ -82,9 +86,11 @@ sub ask_yesno {
   my %args = @_;
   
   my $question = $args{prompt} || croak "No prompt => specified";
+
   my $default  = lc(
     substr($args{default}||'', 0, 1) || croak "No default => specified"
   );
+
   croak "default should be Y or N"
     unless $default =~ /^[yn]$/;
 
@@ -96,10 +102,14 @@ sub ask_yesno {
 
   my $print_and_grab = sub {
     print "$question  [$yn] ";
+
     $input = <STDIN>;
+
     chomp($input);
+
     $input = $default if $input eq '';
-    lc(substr $input, 0, 1);
+
+    lc(substr $input, 0, 1)
   };
 
   $print_and_grab->();

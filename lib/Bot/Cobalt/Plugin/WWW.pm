@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::WWW;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strictures 1;
@@ -44,7 +44,7 @@ sub Cobalt_register {
   my ($self, $core) = splice @_, 0, 2;
 
   $core->plugin_register( $self, 'SERVER',
-    [  'www_request'  ],
+     'www_request',
   );
     
   POE::Session->create(

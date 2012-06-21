@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::PluginMgr;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 ## handles and eats: !plugin
 
@@ -10,12 +10,18 @@ use warnings;
 use Object::Pluggable::Constants qw/ :ALL /;
 
 use Bot::Cobalt;
+
 use Bot::Cobalt::Utils qw/ rplprintf /;
+
 use Bot::Cobalt::Conf;
+
+use Bot::Cobalt::Core::Loader;
 
 use Scalar::Util qw/blessed/;
 
-sub new { bless {}, shift }
+use Try::Tiny;
+
+sub new { bless [], shift }
 
 sub Cobalt_register {
   my ($self, $core) = splice @_, 0, 2;
@@ -37,58 +43,97 @@ sub Cobalt_unregister {
   return PLUGIN_EAT_NONE
 }
 
+sub Bot_public_cmd_plugin {
+  my ($self, $core) = splice @_, 0, 2;
+  my $msg = ${$_[0]};
+  my $context = $msg->context;
+
+  my $chan = $msg->channel;
+  my $nick = $msg->src_nick;
+  
+  my $pcfg = core()->get_plugin_cfg( $self );
+
+  ## default to superuser-only:
+  my $required_lev = $pcfg->{PluginOpts}->{LevelRequired} // 9999;
+
+  my $resp;
+
+  my $operation = lc($msg->message_array->[0]||'');
+
+  if ( core()->auth->level($context, $nick) < $required_lev ) {
+    $resp = rplprintf( core()->lang->{RPL_NO_ACCESS}, { nick => $nick } );
+  } else {
+    unless ($operation && $operation ~~ [qw/load unload reload list/] ) {
+      broadcast( 'message', $context, $chan,
+        "Valid PluginMgr commands: list, load, unload, reload"
+      );
+    }
+
+    my $method = '_cmd_plug_'.lc($operation);
+    
+    if ($self->can($method)) {
+      $resp = $self->$method($msg);
+    } else {
+      logger->error("Bug; can($method) failed in dispatcher");
+      $resp = "Could not find method $method"
+    }
+
+  }
+
+  broadcast('message', $context, $chan, $resp) if defined $resp;
+
+  return PLUGIN_EAT_ALL
+}
+
 sub _unload {
   my ($self, $alias) = @_;
 
   my $resp;
 
   my $plug_obj = core()->plugin_get($alias);
-  my $plugisa = ref $plug_obj || return "_unload broken, no PLUGISA?";
+  my $plugisa = ref $plug_obj || return "_unload broken? no PLUGISA";
 
-  unless ($alias) {
-    $resp = "Bad syntax; no plugin alias specified";
+  if (! $alias) {
+    return "Bad syntax; no plugin alias specified";
+
   } elsif (! $plug_obj ) {
-
-    $resp = rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD_ERR},
-              plugin => $alias,
-              err => 'No such plugin found, is it loaded?' 
+    return rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD_ERR},
+      plugin => $alias,
+      err => 'No such plugin found, is it loaded?' 
     );
 
-  } elsif (! core()->is_reloadable($alias) ) {
-
-    $resp = rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD_ERR},
-              plugin => $alias,
-              err => "Plugin $alias is marked as non-reloadable",
+  } elsif (! Bot::Cobalt::Core::Loader->is_reloadable($plug_obj) ) {
+    return rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD_ERR},
+      plugin => $alias,
+      err => "Plugin $alias is marked as non-reloadable",
    );
-
-  } else {
-    logger->info("Attempting to unload $alias ($plugisa) per request");
-
-    if ( core()->plugin_del($alias) ) {
-      delete core()->PluginObjects->{$plug_obj};
-
-      ## ask core to clean up symbol table:
-      core()->unloader_cleanup($plugisa);
-
-      ## also cleanup our config if there is one:
-      delete core()->cfg->{plugin_cf}->{$alias};
-
-      ## and timers:
-      core()->timer_del_alias($alias);
-      
-      $resp = rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD}, 
-        plugin => $alias
-      );
-    } else {
-      $resp = rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD_ERR},
-        plugin => $alias, 
-        err => 'Unknown failure'
-      );
-    }
 
   }
 
-  return $resp
+  logger->info("Attempting to unload $alias ($plugisa) per request");
+
+  if ( core()->plugin_del($alias) ) {
+    delete core()->PluginObjects->{$plug_obj};
+
+    Bot::Cobalt::Core::Loader->unload($plugisa);
+
+    ## also cleanup our config if there is one:
+    delete core()->cfg->{plugin_cf}->{$alias};
+
+    ## and timers:
+    core()->timer_del_alias($alias);
+      
+    return rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD}, 
+        plugin => $alias
+    );
+  } else {
+    return rplprintf( core()->lang->{RPL_PLUGIN_UNLOAD_ERR},
+      plugin => $alias, 
+      err => 'Unknown failure'
+    );
+  }
+
+  return
 }
 
 sub _load_module {
@@ -96,51 +141,32 @@ sub _load_module {
   ## returns a response string for irc
   my ($self, $alias, $module) = @_;
 
-  my $err;
-  ## FIXME needs to be converted to use core->load_plugin
-  {
-    local $@;
-    eval "require $module";
-    $err = $@ if $@;
-  }
+  my ($err, $obj);
+  try {
+    $obj = Bot::Cobalt::Core::Loader->load($module);
+  } catch {
+    $err = $_
+  };
 
   if ($err) {
     ## 'require' failed
-    my $err = $@;
     logger->warn("Plugin load failure; $err");
     
-    core()->unloader_cleanup($module);
+    Bot::Cobalt::Core::Loader->unload($module);
 
     return rplprintf( core()->lang->{RPL_PLUGIN_ERR},
       plugin => $alias,
       err => "Module $module cannot be found/loaded: $err",
     );
-  } else {
-    ## module found, attempt to load it
-    unless ( $module->can('new') ) {
-      return rplprintf( core()->lang->{RPL_PLUGIN_ERR},
-        plugin => $alias,
-        err => "Module $module doesn't appear to have new()",
-      );
-    }
-
-  }
-
-  my $obj = $module->new();
-  unless ($obj && blessed $obj) {
-      return rplprintf( core()->lang->{RPL_PLUGIN_ERR},
-        plugin => $alias,
-        err => "Constructor for $module returned junk",
-      );
   }
 
   ## store plugin objects:
   core()->PluginObjects->{$obj} = $alias;
 
   ## plugin_add returns # of plugins in pipeline on success:
-  my $loaded = core()->plugin_add( $alias, $obj );
-  if ($loaded) {
-    unless ( core()->is_reloadable($alias, $obj) ) {
+  if (my $loaded = core()->plugin_add( $alias, $obj ) ) {
+    unless ( Bot::Cobalt::Core::Loader->is_reloadable($obj) ) {
+      core()->State->{NonReloadable}->{$alias} = 1;
       logger->debug("$alias flagged non-reloadable");
     }
       
@@ -156,7 +182,8 @@ sub _load_module {
     logger->error("plugin_add failure for $alias");
 
     ## run cleanup  
-    core()->unloader_cleanup($module);
+    Bot::Cobalt::Core::Loader->unload($module);
+
     delete core()->PluginObjects->{$obj};
 
     return rplprintf( core()->lang->{RPL_PLUGIN_ERR},
@@ -232,68 +259,24 @@ sub _load_conf {
   my $thisplugcf = $cconf->_read_plugin_conf($alias, $pluginscf);
   $thisplugcf = {} unless ref $thisplugcf;
 
-  ## directly fuck with core's cfg hash:
   core()->cfg->{plugin_cf}->{$alias} = $thisplugcf;
 }
 
 
-sub Bot_public_cmd_plugin {
-  my ($self, $core) = splice @_, 0, 2;
-  my $msg = ${$_[0]};
-  my $context = $msg->context;
-
-  my $chan = $msg->channel;
-  my $nick = $msg->src_nick;
+sub _cmd_plug_load {
+  my ($self, $msg) = @_;
   
-  my $pcfg = core()->get_plugin_cfg( $self );
-
-  ## default to superuser-only:
-  my $required_lev = $pcfg->{PluginOpts}->{LevelRequired} // 9999;
-
-  my $resp;
-
-  my $operation = $msg->message_array->[0];
-
-  unless ( core()->auth->level($context, $nick) >= $required_lev ) {
-    $resp = rplprintf( core()->lang->{RPL_NO_ACCESS}, { nick => $nick } );
-  } else {
+  my ($alias, $module) = @{ $msg->message_array }[1,2];
   
-    ## FIXME proper cmd dispatcher for all this crap
-    given ( lc($operation || '') ) {
-      when ('load') {
-        ## syntax: !plugin load <alias>, !plugin load <alias> <module>
-        my $alias  = $msg->message_array->[1];
-        my $module = $msg->message_array->[2];
-        $resp = $self->_load($alias, $module);
-      }
+  return $self->_load($alias, $module)
+}
 
-      when ('unload') {
-        ## syntax: !plugin unload <alias>
-        my $alias = $msg->message_array->[1];
-        $resp = $self->_unload($alias) || "Strange, no reply from _unload?";
-      }
+sub _cmd_plug_unload {
+  my ($self, $msg) = @_;
+  
+  my $alias = $msg->message_array->[1];
 
-      when ('reload') {
-        ## syntax: !plugin reload <alias>
-        $resp = $self->_cmd_plug_reload($msg);
-      }
-
-      when ('list') {
-        $resp = $self->_cmd_plug_list($msg);
-      }
-
-      ## shouldfix; reordering via ::Pipeline?
-
-      default { 
-        $resp = "Valid PluginMgr commands: list / load / unload / reload"
-      }
-    }
-
-  }
-
-  broadcast('message', $context, $chan, $resp) if defined $resp;
-
-  return PLUGIN_EAT_ALL
+  return $self->_unload($alias) || "Bug; no reply from _unload"
 }
 
 sub _cmd_plug_list {
@@ -303,7 +286,7 @@ sub _cmd_plug_list {
   
   my @loaded = sort keys %$pluglist;
 
-  my $str;
+  my $str = sprintf("Loaded (%d):", scalar @loaded);
   while (my $plugin_alias = shift @loaded) {
     $str .= ' ' . $plugin_alias;
 

@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 ## This is the core Syndicator singleton.
 
@@ -19,7 +19,11 @@ use Bot::Cobalt::IRC;
 use Bot::Cobalt::Core::ContextMeta::Auth;
 use Bot::Cobalt::Core::ContextMeta::Ignore;
 
+use Bot::Cobalt::Core::Loader;
+
 use Scalar::Util qw/blessed/;
+
+use Try::Tiny;
 
 use File::Spec;
 
@@ -166,7 +170,6 @@ extends 'POE::Component::Syndicator';
 with 'Bot::Cobalt::Lang';
 with 'Bot::Cobalt::Core::Role::Singleton';
 with 'Bot::Cobalt::Core::Role::EasyAccessors';
-with 'Bot::Cobalt::Core::Role::Loader';
 with 'Bot::Cobalt::Core::Role::Timers';
 with 'Bot::Cobalt::Core::Role::IRC';
 
@@ -216,8 +219,10 @@ sub init {
       $self => [
         'syndicator_started',
         'syndicator_stopped',
+
         'shutdown',
         'sighup',
+
         'ev_plugin_error',
 
         'core_timer_check_pool',
@@ -245,29 +250,45 @@ sub syndicator_started {
     ($self->cfg->{plugins}->{$a}->{Priority}//1)
                 } keys %{ $self->cfg->{plugins} };
 
-  for my $plugin (@plugins)
+  PLUGIN: for my $plugin (@plugins)
   {
     my $this_plug_cf = $self->cfg->{plugins}->{$plugin};
 
-    next if $this_plug_cf->{NoAutoLoad};
-
-    my $obj = $self->load_plugin($plugin);
+    my $module = $this_plug_cf->{Module};
     
-    ## load_plugin will have thrown an error, skip:
-    next unless $obj;
+    unless (defined $module) {
+      $self->log->error("Missing Module directive for $plugin");
+      next PLUGIN
+    }
 
+    next PLUGIN if $this_plug_cf->{NoAutoLoad};
+    
+    my $obj;
+    try {
+      $obj = Bot::Cobalt::Core::Loader->load($module);
+      
+      unless ( Bot::Cobalt::Core::Loader->is_reloadable($obj) ) {
+        $self->State->{NonReloadable}->{$plugin} = 1;
+        $self->log->debug("$plugin marked non-reloadable");
+      }
+
+    } catch {
+      $self->log->error("Load failure; $_");
+
+      next PLUGIN
+    };
+
+    ## save stringified object -> plugin mapping:
     $self->PluginObjects->{$obj} = $plugin;
 
     unless ( $self->plugin_add($plugin, $obj) ) {
       $self->log->error("plugin_add failure for $plugin");
 
       delete $self->PluginObjects->{$obj};
-      
-      $self->unloader_cleanup(
-        $this_plug_cf->{Module}
-      );
+            
+      Bot::Cobalt::Core::Loader->unload($module);
 
-      next
+      next PLUGIN
     }
 
     $i++;
@@ -297,14 +318,18 @@ sub sighup {
     ## we were (we think) attached to a terminal and it's (we think) gone
     ## shut down soon as we can:
     $self->log->warn("Lost terminal; shutting down");
+
     $_[KERNEL]->yield('shutdown');
   }
+
   $_[KERNEL]->sig_handled();
 }
 
 sub shutdown {
   my $self = ref $_[0] eq __PACKAGE__ ? $_[0] : $_[OBJECT];
+
   $self->log->warn("Shutdown called, destroying syndicator");
+
   $self->_syndicator_destroy();
 }
 
@@ -402,7 +427,7 @@ See L<Bot::Cobalt::Core::Sugar> for details.
 Public methods are documented in L<Bot::Cobalt::Manual::Plugins/"Core 
 methods"> and the classes & roles listed below.
 
-See:
+See also:
 
 =over
 
@@ -426,9 +451,6 @@ L<Bot::Cobalt::Core::Role::IRC>
 
 L<Bot::Cobalt::Core::Role::Timers>
 
-=item *
-
-L<Bot::Cobalt::Core::Role::Loader>
 
 =back
 

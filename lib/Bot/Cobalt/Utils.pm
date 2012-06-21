@@ -1,5 +1,5 @@
 package Bot::Cobalt::Utils;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strict;
@@ -94,7 +94,7 @@ sub rplprintf {
     if (ref $_[0] eq 'HASH') {
       $vars{$_} = $_[0]->{$_} for keys %{$_[0]}
     } else {
-      croak "rplprintf() expects a hash"
+      confess "rplprintf() expects a hash"
     }
   }
 
@@ -102,6 +102,7 @@ sub rplprintf {
     ## _repl($1, $2, $vars)
     my ($orig, $match, $varref) = @_;
     return $orig unless defined $varref->{$match};
+
     my $replace = $varref->{$match};
     return $replace
   };

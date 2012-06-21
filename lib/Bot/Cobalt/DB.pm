@@ -1,5 +1,5 @@
 package Bot::Cobalt::DB;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 ## Simple interface to a DB_File
 ## Uses proper retie-after-lock technique for locking
@@ -271,7 +271,8 @@ sub get {
   my ($self, $key) = @_;
   confess "attempted 'get' on unopened db"
     unless $self->is_open;
-  return undef unless exists $self->Tied->{$key};
+
+  return unless exists $self->Tied->{$key};
 
   return $self->Tied->{$key}
 }
@@ -288,8 +289,11 @@ sub del {
   my ($self, $key) = @_;
   confess "attempted 'del' on unopened db"
     unless $self->is_open;
-  return undef unless exists $self->Tied->{$key};
+
+  return unless exists $self->Tied->{$key};
+
   delete $self->Tied->{$key};
+
   return 1
 }
 
@@ -303,7 +307,8 @@ sub dbdump {
   my %copy = %{ $self->Tied };
   
   my $dumper = Bot::Cobalt::Serializer->new( Format => $format );
-  return $dumper->freeze(\%copy);
+
+  $dumper->freeze(\%copy)
 }
 
 1;

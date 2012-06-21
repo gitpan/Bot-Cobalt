@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Games;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strict;
@@ -7,6 +7,8 @@ use warnings;
 
 use Bot::Cobalt;
 use Object::Pluggable::Constants qw/ :ALL /;
+
+use Bot::Cobalt::Core::Loader;
 
 sub new { bless {}, shift }
 
@@ -26,7 +28,7 @@ sub Cobalt_unregister {
   $core->log->debug("Cleaning up our games...");
 
   for my $module (@{ $self->{ModuleNames}//[] }) {
-    $core->unloader_cleanup($module);
+    Bot::Cobalt::Core::Loader->unload($module);
   }
 
   $core->log->info("Unloaded");
@@ -78,6 +80,7 @@ sub _load_games {
     next unless ref $games->{$game}->{Cmds} eq 'ARRAY';
 
     ## attempt to load module
+    ## FIXME convert to Loader.pm interface
     {
       local $@;
       eval "require $module";
@@ -93,7 +96,7 @@ sub _load_games {
 
     my $obj = $module->new;
     $self->{Objects}->{$game} = $obj;
-    ## build a hash of commands we should handle
+
     for my $cmd (@{ $games->{$game}->{Cmds} }) {
 
       $self->{Dispatch}->{$cmd} = $game;

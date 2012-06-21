@@ -1,16 +1,22 @@
 package Bot::Cobalt::IRC::FloodChk;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
+use Carp;
 use Moo;
+
 use Bot::Cobalt::Common qw/:types/;
+
+use strictures;
+
+use Time::HiRes;
 
 ## fqueue->{$context}->{$key} = []
 has 'fqueue' => ( is => 'rw', isa => HashRef,
   default => sub { {} },
 );
 
-has 'count' => ( is => 'rw', isa => Int, required => 1 );
-has 'in'    => ( is => 'rw', isa => Int, required => 1 );
+has 'count' => ( is => 'rw', isa => Num, required => 1 );
+has 'in'    => ( is => 'rw', isa => Num, required => 1 );
 
 sub check {
   my ($self, $context, $key) = @_;
@@ -25,7 +31,7 @@ sub check {
     my $ev_sec    = $self->in;
 
     my $delayed = int(
-      ($oldest_ts + ($pending * $ev_sec / $ev_c) ) - time
+      ($oldest_ts + ($pending * $ev_sec / $ev_c) ) - Time::HiRes::time()
     );
     
     ## Too many events in this time window:
@@ -36,20 +42,21 @@ sub check {
   }
   
   ## Safe to push this ev.
-  push @$this_ref, time;
+  push @$this_ref, Time::HiRes::time();
 
   return 0
 }
 
 sub clear {
   my ($self, $context, $key) = @_;
-  return unless defined $context and defined $key;
+  confess "clear() needs a context specified" 
+    unless defined $context;
   
   return unless exists $self->fqueue->{$context};
   
-  return delete $self->fqueue->{$context}->{$key}
-    if defined $key;
-  return delete $self->fqueue->{$context}
+  defined $key ?
+    delete $self->fqueue->{$context}->{$key}
+    : delete $self->fqueue->{$context}
 }
 
 sub expire {
@@ -60,7 +67,7 @@ sub expire {
       my @events = @{ $self->fqueue->{$context}->{$key} };
       my $latest_time = $events[-1] // next KEY;
       
-      if (time - $latest_time > $self->in) {
+      if (Time::HiRes::time() - $latest_time > $self->in) {
         ## It's been more than ->in seconds since latest event was
         ## noted. We can clear() this entry.
         $self->clear($context, $key);

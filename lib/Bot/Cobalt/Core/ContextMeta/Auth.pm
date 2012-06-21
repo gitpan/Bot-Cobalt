@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::ContextMeta::Auth;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strictures 1;
@@ -25,8 +25,7 @@ around 'add' => sub {
   ## )
 
   my %args = @_;
-  
-  $args{lc $_} = $args{$_} for keys %args;
+  $args{lc $_} = delete $args{$_} for keys %args;
   
   for my $required (qw/context nickname username host level/) {
     unless (defined $args{$required}) {
@@ -35,8 +34,8 @@ around 'add' => sub {
     }
   }
   
-  $args{alias} = scalar caller unless $args{alias};
-  $args{flags} = {}            unless $args{flags};
+  $args{alias} = scalar caller unless defined $args{alias};
+  $args{flags} = {}            unless defined $args{flags};
   
   my $meta = {
     Alias => $args{alias},

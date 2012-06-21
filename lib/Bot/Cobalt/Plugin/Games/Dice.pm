@@ -1,7 +1,5 @@
 package Bot::Cobalt::Plugin::Games::Dice;
-our $VERSION = '0.009';
-
-our $VERSION = '0.03';
+our $VERSION = '0.010';
 
 use 5.10.1;
 use strict;
@@ -9,14 +7,14 @@ use warnings;
 
 use Bot::Cobalt::Utils qw/ color /;
 
-sub new { bless {}, shift }
+sub new { bless [], shift }
 
 sub execute {
   my ($self, $msg, $str) = @_;
   return "Syntax: roll XdY  [ +/- <modifier> ]" unless $str;
   my ($dice, $modifier, $modify_by) = split ' ', $str;
 
-  given ($dice) {
+  for ($dice) {
   
     when (/^(\d+)?d(\d+)?$/i) {  ## Xd / dY / XdY syntax
       my $n_dice = $1 || 1;

@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC::Message;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 ## Message class. Inherits from Event
 
@@ -113,7 +113,7 @@ __END__
 
 =head1 NAME
 
-Bot::Cobalt::IRC::Message - Represent an incoming IRC message
+Bot::Cobalt::IRC::Message - An incoming IRC message
 
 =head1 SYNOPSIS
 

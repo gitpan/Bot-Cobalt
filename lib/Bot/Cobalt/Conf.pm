@@ -1,5 +1,5 @@
 package Bot::Cobalt::Conf;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 ## Bot::Cobalt::Conf
 ## Looks for the following YAML confs:
@@ -264,7 +264,7 @@ __END__
 
 =head1 NAME
 
-Bot::Cobalt::Conf - Parse Cobalt configuration files
+Bot::Cobalt::Conf - Load Bot::Cobalt configuration files
 
 =head1 SYNOPSIS
 

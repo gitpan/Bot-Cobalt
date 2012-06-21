@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 ## 'Random' DBs, often used for quotebots or random chatter
 
@@ -1201,7 +1201,7 @@ __END__
 
 =head1 NAME
 
-Bot::Cobalt::Plugin::RDB - Cobalt "random stuff" plugin
+Bot::Cobalt::Plugin::RDB - Bot::Cobalt "random" DB plugin
 
 =head1 DESCRIPTION
 

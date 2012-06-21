@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB::SearchCache;
-our $VERSION = '0.009';
+our $VERSION = '0.010';
 
 ## This is a fairly generic in-memory cache object.
 ##
@@ -26,16 +26,17 @@ sub new {
   $self->{Cache} = { };
     
   my %opts = @_;
-  $self->{MAX_KEYS} = $opts{MaxKeys} || 30;
+
+  $self->MaxKeys($opts{MaxKeys} || 30);
   
-  return $self
+  $self
 }
 
 sub cache {
   my ($self, $ckey, $match, $resultset) = @_;
   ## should be passed rdb, search str, and array of matching indices
   
-  return unless $ckey and $match;
+  return unless defined $ckey and defined $match;
   $resultset = [ ] unless $resultset and ref $resultset eq 'ARRAY';
 
   ## _shrink will do the right thing depending on size of cache
@@ -51,9 +52,9 @@ sub cache {
 sub fetch {
   my ($self, $ckey, $match) = @_;
   
-  return unless $ckey and $match;
+  return unless defined $ckey and defined $match;
 
-  return unless $self->{Cache}->{$ckey} 
+  return unless exists $self->{Cache}->{$ckey} 
          and $self->{Cache}->{$ckey}->{$match};
 
   my $ref = $self->{Cache}->{$ckey}->{$match};
@@ -63,37 +64,35 @@ sub fetch {
     : $ref->{Results}
 }
 
+sub MaxKeys {
+  my ($self, $max) = @_;
+  return $self->{MAX_KEYS} = $max if defined $max;
+  $self->{MAX_KEYS}
+}
 
 sub invalidate {
   my ($self, $ckey, $match) = @_;
   ## should be called on add/del operations 
 
-  unless ($ckey) {
+  unless (defined $ckey) {
     ## invalidate all by not passing an arg
     $self->{Cache} = { };
     return
   }
 
-  return unless $self->{Cache}->{$ckey}
-         and scalar keys %{ $self->{Cache}->{$ckey} } ;
+  return unless exists $self->{Cache}->{$ckey}
+         and keys %{ $self->{Cache}->{$ckey} } ;
 
   return delete $self->{Cache}->{$ckey}->{$match}
     if defined $match;
 
-  return delete $self->{Cache}->{$ckey}
-}
-
-sub MaxKeys {
-  my ($self, $max) = @_;
-  $self->{MAX_KEYS} = $max if defined $max;
-
-  return $self->{MAX_KEYS}
+  delete $self->{Cache}->{$ckey}
 }
 
 sub _shrink {
   my ($self, $ckey) = @_;
   
-  return unless $ckey and ref $self->{Cache}->{$ckey};
+  return unless defined $ckey and ref $self->{Cache}->{$ckey};
 
   my $cacheref = $self->{Cache}->{$ckey};
 
@@ -104,12 +103,13 @@ sub _shrink {
     } keys %$cacheref;
   
   my $deleted = 0;
+
   while (scalar keys %$cacheref > $self->MaxKeys) {
     my $nextkey = shift @cached;
     ++$deleted if delete $cacheref->{$nextkey};
   }
 
-  return $deleted
+  $deleted
 }
 
 1;
