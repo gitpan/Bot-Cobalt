@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::Sugar;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use 5.10.1;
 use strictures 1;
@@ -25,7 +25,7 @@ sub core {
   Bot::Cobalt::Core->instance
 }
 
-sub broadcast {
+sub broadcast (@) {
   core()->send_event( @_ )
 }
 
@@ -33,27 +33,27 @@ sub logger {
   core()->log
 }
 
-sub register {
+sub register (@) {
   core()->plugin_register( @_ )
 }
 
-sub unregister {
+sub unregister (@) {
   core()->plugin_register( @_ )
 }
 
-sub plugin_cfg {
+sub plugin_cfg ($) {
   core()->get_plugin_cfg( @_ )
 }
 
-sub plugin_alias {
+sub plugin_alias ($) {
   core()->get_plugin_alias( @_ )
 }
 
-sub irc_object {
+sub irc_object ($) {
   core()->get_irc_object( @_ )
 }
 
-sub irc_context {
+sub irc_context ($) {
   core()->get_irc_context( @_ );
 }
 
@@ -75,10 +75,10 @@ Bot::Cobalt::Core::Sugar - Exported sugar for Bot::Cobalt plugins
   my $p_cfg = core->get_plugin_cfg($self);  
   
   # Call plugin_register
-  register( $self, 'SERVER', [ 'public_msg' ] );
+  register $self, 'SERVER', qw/ public_msg /;
   
   ## Call send_event
-  broadcast( 'message', $context, $channel, $string );
+  broadcast 'message', $context, $channel, $string;
   
   ## Call core->log
   logger->warn("A warning");
@@ -101,7 +101,7 @@ Same as calling:
 
 Queue an event to send to the plugin pipeline.
 
-  broadcast( $event, @args );
+  broadcast $event, @args;
 
 Wraps the B<send_event> method available via L<Bot::Cobalt::Core>, which 
 is a L<POE::Component::Syndicator>.
@@ -156,7 +156,7 @@ L<Bot::Cobalt::Core::Role::EasyAccessors>
 
 =head2 register
 
-  register( $self, 'SERVER', [ @events ]);
+  register $self, 'SERVER', @events;
 
 Register to receive specified syndicated events.
 

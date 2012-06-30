@@ -1,13 +1,13 @@
 package Bot::Cobalt::IRC::Role::AdminCmds;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use 5.12.1;
 use Moo::Role;
-use strictures 1;
 
 use Bot::Cobalt;
 use Bot::Cobalt::Common;
 
+use strictures 1;
 
 sub Bot_public_cmd_server {
   my ($self, $core) = splice @_, 0, 2;

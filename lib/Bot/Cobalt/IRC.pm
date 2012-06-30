@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use 5.10.1;
 use strictures 1;
@@ -631,7 +631,7 @@ sub irc_notice {
     message => $txt,
   );
   
-  broadcast( 'notice', $msg_obj );
+  broadcast( 'got_notice', $msg_obj );
 }
 
 sub irc_ctcp_action {
@@ -968,8 +968,8 @@ L<Bot::Cobalt>; incoming and outgoing IRC activity
 is handled just like any other plugin pipeline event.
 
 This core IRC plugin provides a multi-server IRC interface via
-L<POE::Component::IRC>. Any other IRC plugins should follow this pattern 
-and provide a compatible event interface.
+L<POE::Component::IRC>. Subclasses or other IRC plugins should follow 
+this pattern and provide a compatible event interface.
 
 The IRC plugin does various work on incoming events we consider important 
 enough to re-broadcast from the IRC component. This makes life easier on 
@@ -977,7 +977,7 @@ plugins and reduces code redundancy.
 
 Arguments may vary by event. See below.
 
-If you're trying to write Cobalt plugins, you probably want to start 
+If you're trying to write Cobalt plugins, you probably want to start off 
 with L<Bot::Cobalt::Manual::Plugins> -- this is a reference for IRC-related 
 events specifically.
 
@@ -1103,7 +1103,7 @@ The default IRC interface plugins only spawn a single client per server.
 It's fairly safe to assume that C<target> is the bot's current nickname.
 
 
-=head3 Bot_notice
+=head3 Bot_got_notice
 
 Broadcast when a /NOTICE is received.
 

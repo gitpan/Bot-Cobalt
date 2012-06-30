@@ -1,5 +1,5 @@
 package Bot::Cobalt::Utils;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use 5.10.1;
 use strict;
@@ -117,7 +117,7 @@ sub rplprintf {
 
 ## Glob -> regex functions:
 
-sub glob_grep {
+sub glob_grep ($;@) {
   my $glob = shift;
   confess "glob_grep called with no arguments!"
     unless defined $glob;
@@ -129,7 +129,7 @@ sub glob_grep {
   grep { m/$re/ } @array
 }
 
-sub glob_to_re {
+sub glob_to_re ($) {
   my ($glob) = @_;
   confess "glob_to_re called with no arguments!"
     unless defined $glob;
@@ -139,7 +139,7 @@ sub glob_to_re {
   qr/$re/
 }
 
-sub glob_to_re_str {
+sub glob_to_re_str ($) {
   ## Currently allows:
   ##   *  == .*
   ##   ?  == .
@@ -210,7 +210,7 @@ sub glob_to_re_str {
 
 
 ## IRC color codes:
-sub color {
+sub color ($;$) {
   ## color($format, $str)
   ## implements mirc formatting codes, against my better judgement
   ## if format is unspecified, returns NORMAL
@@ -235,7 +235,7 @@ sub color {
 
 
 ## Time/date ops:
-sub timestr_to_secs {
+sub timestr_to_secs ($) {
   ## turn something like 2h3m30s into seconds
   my ($timestr) = @_;
   
@@ -274,19 +274,22 @@ sub timestr_to_secs {
   $secs
 }
 
-sub _time_breakdown {
+sub _time_breakdown ($) {
   my ($diff) = @_;
   return unless defined $diff;
+
   my $days   = int $diff / 86400;
   my $sec    = $diff % 86400;
   my $hours  = int $sec / 3600;  $sec   %= 3600;
   my $mins   = int $sec / 60;    $sec   %= 60;
+
   return($days, $hours, $mins, $sec)
 }
 
-sub secs_to_timestr {
+sub secs_to_timestr ($) {
   my ($diff) = @_;
   return unless defined $diff;
+
   my ($days, $hours, $mins, $sec) = _time_breakdown($diff);
 
   my $str;
@@ -298,7 +301,7 @@ sub secs_to_timestr {
   $str  
 }
 
-sub secs_to_str {
+sub secs_to_str ($) {
   ## turn seconds into a string like '0 days, 00:00:00'
   my ($diff) = @_;
   return unless defined $diff;
@@ -312,8 +315,8 @@ sub secs_to_str {
 
 
 ## App::bmkpasswd stubs as of 00_35
-sub mkpasswd  { App::bmkpasswd::mkpasswd(@_) }
-sub passwdcmp { App::bmkpasswd::passwdcmp(@_) }
+sub mkpasswd  ($;@) { App::bmkpasswd::mkpasswd(@_) }
+sub passwdcmp ($$) { App::bmkpasswd::passwdcmp(@_) }
 
 1;
 __END__
@@ -397,7 +400,7 @@ See below for a list of exportable functions.
 
 Convert a string such as "2h10m" into seconds.
 
-  my $delay_s = timestr_to_secs('1h33m10s');
+  my $delay_s = timestr_to_secs '1h33m10s';
 
 Useful for dealing with timers.
 
@@ -407,7 +410,7 @@ Useful for dealing with timers.
 Turns seconds back into a timestring suitable for feeding to 
 L</timestr_to_secs>:
 
-  my $timestr = secs_to_timestr(820); ## -> 13m40s
+  my $timestr = secs_to_timestr 820; ## -> 13m40s
 
 
 =head3 secs_to_str
@@ -417,7 +420,7 @@ Convert a timestamp delta into a string.
 Useful for uptime reporting, for example:
 
   my $delta = time() - $your_start_TS;
-  my $uptime_str = secs_to_str($delta);
+  my $uptime_str = secs_to_str $delta;
 
 
 
@@ -457,7 +460,7 @@ C<color()> instead.
 
 glob_to_re_str() converts Cobalt-style globs to regex strings.
 
-  my $re = glob_to_re_str("th?ngs*stuff");
+  my $re = glob_to_re_str "th?ngs*stuff";
   ## or perhaps compile it:
   my $compiled_re = qr/$re/;
 
@@ -556,20 +559,20 @@ Salts are always random.
   ## bcrypt is blowfish with a work cost factor.
   ## if hashes are stolen, they'll be slow to break
   ## see http://codahale.com/how-to-safely-store-a-password/
-  my $hashed = mkpasswd($password);
+  my $hashed = mkpasswd $password;
 
   ## you can specify method options . . .
   ## here's bcrypt with a lower work cost factor.
   ## (must be a two-digit power of 2, possibly padded with 0)
-  my $hashed = mkpasswd($password, 'bcrypt', '06');
+  my $hashed = mkpasswd $password, 'bcrypt', '06';
 
   ## Available methods:
   ##  bcrypt (preferred)
   ##  SHA-256 or -512 (req. modern libc or Crypt::Passwd::XS)
   ##  MD5 (fast, portable, weak)
-  my $sha_passwd = mkpasswd($password, 'sha512');
+  my $sha_passwd = mkpasswd $password, 'sha512';
   ## same as:
-  my $sha_passwd = mkpasswd($password, 'SHA-512');
+  my $sha_passwd = mkpasswd $password, 'SHA-512';
 
 
 =head3 passwdcmp
@@ -579,7 +582,7 @@ Compare hashed passwords.
 Compatible with whatever methods C<mkpasswd> supports on the current 
 system.
 
-  return passwdcmp($password, $hashed);
+  return passwdcmp $password, $hashed;
 
 Returns the hash if the cleartext password is a match. Otherwise returns 
 boolean false.

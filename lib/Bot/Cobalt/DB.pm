@@ -1,5 +1,5 @@
 package Bot::Cobalt::DB;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 ## Simple interface to a DB_File
 ## Uses proper retie-after-lock technique for locking
@@ -17,6 +17,8 @@ use IO::File;
 
 use Bot::Cobalt::Serializer;
 use Bot::Cobalt::Common qw/:types/;
+
+use Time::HiRes qw/sleep/;
 
 has 'File'  => ( 
   is  => 'rw', 
@@ -170,8 +172,9 @@ sub dbopen {
       untie %{ $self->_orig };
       return
     }
-    select undef, undef, undef, 0.1;
-    $timer += 0.1;
+
+    sleep 0.01;
+    $timer += 0.01;
   }
 
   ## reopen DB to Tied

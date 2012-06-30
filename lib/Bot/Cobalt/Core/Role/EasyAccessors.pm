@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::Role::EasyAccessors;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use strictures 1;
 use Moo::Role;
@@ -117,8 +117,7 @@ loaded.
 
 =head2 get_channels_cfg
 
-Returns a copy of the channel configuration hash for the specified 
-context.
+Returns the channel configuration hash for the specified context.
 
 =head2 get_plugin_cfg
 

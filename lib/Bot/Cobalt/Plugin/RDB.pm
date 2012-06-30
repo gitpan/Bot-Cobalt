@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 ## 'Random' DBs, often used for quotebots or random chatter
 
@@ -15,8 +15,6 @@ use POE;
 use File::Spec;
 
 use List::Util   qw/shuffle/;
-
-## Some de-Moo'd accessors for easy plugin reloads:
 
 sub new { bless {}, shift }
 
@@ -263,28 +261,31 @@ sub _select_random {
   my ($self, $msg, $rdb, $quietfail) = @_;
   my $dbmgr  = $self->DBmgr;
   my $retval = $dbmgr->random($rdb);
-  ## we'll get either an item as hashref or err status:
+
+  ## we'll get either an item ref or err status:
   
   if ($retval && ref $retval) {
     my $content = ref $retval eq 'HASH' ?
                   $retval->{String}
                   : $retval->[0] ;
-    if ($self->{LastRandom}
-        && $self->{LastRandom} eq $content
-    ) {
+
+    if ($self->{LastRandom} && $self->{LastRandom} eq $content) {
       $retval  = $dbmgr->random($rdb);
-      if      (ref $retval eq 'HASH') {
-        $content = $retval->{String}//''
-      } elsif (ref $retval eq 'ARRAY') {
-        $content = $retval->[0]//''
-      }
+
+      $content = ref $retval eq 'HASH' ?
+                $retval->{String}
+                : $retval->[0] ;
     }
+
     $self->{LastRandom} = $content;
-    return $content
+
+    return $content // ''
+
   } else {
     ## do nothing if we're supposed to fail quietly
     ## (e.g. in a rdb_triggered for an empty rdb)
     return if $quietfail;
+
     my $rpl;
     given ($dbmgr->Error) {
       $rpl = "RDB_ERR_NO_SUCH_RDB" when "RDB_NOSUCH";
@@ -294,6 +295,7 @@ sub _select_random {
       ## unknown error status?
       default { $rpl = "RPL_DB_ERR" }
     }
+
     return rplprintf( core->lang->{$rpl},
       {
         nick => $msg->src_nick//'',
@@ -823,14 +825,29 @@ sub Bot_rdb_broadcast {
   my ($self, $core) = splice @_, 0, 2;
   ## our timer self-event
 
+  ## reset timer unless randdelay is 0
+  if ($self->rand_delay) {
+    $core->timer_set( $self->rand_delay, 
+      { 
+        Event => 'rdb_broadcast', 
+        Alias => $core->get_plugin_alias($self) 
+      }, 
+      'RANDSTUFF'
+    );
+    
+    logger->debug("rdb_broadcast; timer reset; ".$self->rand_delay);
+  }
+
   my $random = $self->_select_random({}, 'main', 'quietfail')
-               || return PLUGIN_EAT_ALL;
+               // return PLUGIN_EAT_ALL;
   
   ## iterate channels cfg
   ## throw randstuffs at configured channels unless told not to
   my $servers = $core->Servers;
+
   SERVER: for my $context (keys %$servers) {
     my $c_obj = $core->get_irc_context($context);
+
     next SERVER unless $c_obj->connected;
 
     my $irc   = $core->get_irc_obj($context) || next SERVER;
@@ -851,31 +868,23 @@ sub Bot_rdb_broadcast {
       $evtype = 'message';
     }
     
+    logger->debug("rdb_broadcast; type is $evtype");
+    
     @channels = grep { $chcfg->{$_}->{rdb_randstuffs}//1 } @channels;
 
     my $maxtargets = $c_obj->maxtargets;
     
     while (my @targets = splice @channels, 0, $maxtargets) {
       my $tcount = @targets;
-      logger->debug(
-        "rdb_broadcast ($evtype) to $tcount targets ($context)"
-      );
       my $targetstr = join ',', @targets;
+      logger->debug(
+        "rdb_broadcast ($evtype) to $tcount targets",
+        "($context -> $targetstr)"
+      );
       broadcast( $evtype, $context, $targetstr, $random );
     }
     
   } # SERVER
-
-  ## reset timer unless randdelay is 0
-  if ($self->rand_delay) {
-    $core->timer_set( $self->rand_delay, 
-      { 
-        Event => 'rdb_broadcast', 
-        Alias => $core->get_plugin_alias($self) 
-      }, 
-      'RANDSTUFF'
-    );
-  }
 
   return PLUGIN_EAT_ALL  ## theoretically no one else cares
 }

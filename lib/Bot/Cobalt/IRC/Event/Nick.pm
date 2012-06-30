@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC::Event::Nick;
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 use Moo;
 use strictures 1;
