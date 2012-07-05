@@ -184,11 +184,12 @@ my $build = $class->new(
       'YAML::XS'    => '0.34',
 
      # Logging
-      'Log::Handler' => '0.71',
+      'Devel::StackTrace' => '1.27',
+      'Log::Handler'      => '0.71',
 
      # Moo + related
       'Moo'         => '0.091009',
-      'MooX::Types::MooseLike' => '0.05',
+      'MooX::Types::MooseLike' => '0.08',
       
      # Network
       'Net::IP::Minimal' => '0.02',

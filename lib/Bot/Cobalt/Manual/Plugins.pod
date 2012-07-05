@@ -748,7 +748,6 @@ This can be used to query or post events to the IRC component directly.
 See the L<POE::Component::IRC> and L<POE::Component::IRC::State> docs for 
 more on interacting directly with the IRC component.
 
-
 =head4 get_irc_server
 
   my $server_state = $core->get_irc_server( $context );
@@ -1028,21 +1027,6 @@ Broadcast when the syndicator reports an error from a plugin.
 
 The only argument is the error string reported by 
 L<POE::Component::Syndicator>.
-
-These messages are also logged to 'warn' by default.
-
-=head3 Langset related events
-
-=head4 langset_loaded
-
-Broadcast when a language set load appears to have succeeded.
-
-The first argument is the langset name. The second argument is the path 
-to the langset file that was loaded.
-
-=head4 langset_error
-
-Broadcast when a language set load has failed.
 
 These messages are also logged to 'warn' by default.
 

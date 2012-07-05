@@ -1,4 +1,4 @@
-use Test::More tests => 27;
+use Test::More tests => 28;
 use strict; use warnings;
 
 BEGIN {
@@ -22,6 +22,11 @@ can_ok( 'Bot::Cobalt::Core::Loader',
 
 use Module::Build;
 use File::Spec;
+use File::Temp qw/tempdir/;
+
+my $workdir = File::Spec->tmpdir;
+my $tempdir = tempdir( CLEANUP => 1, DIR => $workdir );
+
 my $basedir;
 
 use Try::Tiny;
@@ -44,7 +49,7 @@ my $core;
 ok( 
   $core = Bot::Cobalt::Core->instance(
     cfg => $cfg,
-    var => '',
+    var => $tempdir,
   ),
   'instance() a Bot::Cobalt::Core',
 );
@@ -61,6 +66,8 @@ for my $meth (qw/debug info warn error/) {
 
 isa_ok( $core->auth, 'Bot::Cobalt::Core::ContextMeta::Auth' );
 isa_ok( $core->ignore, 'Bot::Cobalt::Core::ContextMeta::Ignore' );
+
+ok( keys %{ $core->lang }, 'lang() has keys' );
 
 ## Did we get expected roles, here?
 can_ok( $core,

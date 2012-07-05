@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core;
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 
 ## This is the core Syndicator singleton.
 
@@ -11,10 +11,10 @@ use Moo;
 use Log::Handler;
 
 use POE;
-use Object::Pluggable::Constants qw(:ALL);
 
 use Bot::Cobalt::Common;
 use Bot::Cobalt::IRC;
+use Bot::Cobalt::Lang;
 
 use Bot::Cobalt::Core::ContextMeta::Auth;
 use Bot::Cobalt::Core::ContextMeta::Ignore;
@@ -83,16 +83,19 @@ has 'detached' => (
   default => sub { 0 },
 );
 
-has 'debug'    => ( 
+has 'debug'    => (
+  lazy => 1,
+
   isa => Int, 
   is  => 'rw', 
 
-  default => sub { 0 } 
+  default => sub { 0 },
 );
 
 ## version/url used for var replacement:
 has 'version' => ( 
   lazy => 1,
+
   is   => 'rwp', 
   isa  => Str,
 
@@ -100,15 +103,53 @@ has 'version' => (
 );
 
 has 'url' => ( 
-  is  => 'ro', 
+  lazy => 1,
+
+  is  => 'rwp',
   isa => Str,
 
   default => sub { "http://www.metacpan.org/dist/Bot-Cobalt" },
 );
 
+has 'langset' => (
+  lazy => 1,
+  
+  is  => 'ro',
+  isa => sub {
+    die "langset() needs a Bot::Cobalt::Lang"
+      unless blessed $_[0] && $_[0]->isa('Bot::Cobalt::Lang');
+  },
+
+  writer  => 'set_langset',
+  
+  default => sub {
+    my ($self) = @_;
+
+    my $language = $self->cfg->{core}->{Language} // 'english';
+    
+    my $lang_dir = File::Spec->catdir( $self->etc, 'langs' );
+    
+    Bot::Cobalt::Lang->new(
+      use_core => 1,
+      
+      lang_dir => $lang_dir,
+      lang     => $language,
+    )
+  },
+);
+
 has 'lang' => ( 
-  is => 'rw', 
-  isa => HashRef
+  lazy => 1,
+
+  is  => 'ro',
+  isa => HashRef,
+  
+  writer  => 'set_lang',
+  
+  default => sub {
+    my ($self) = @_;
+    $self->langset->rpls
+  }, 
 );
 
 has 'State' => (
@@ -175,13 +216,39 @@ has 'ignore' => (
   },
 );
 
+## FIXME not documented
+has 'resolver' => (
+  lazy => 1,
+  
+  is  => 'rwp',
+  isa => Object,
+  
+  default => sub {
+    POE::Component::Client::DNS->spawn(
+      Alias => 'core_resolver',
+    )
+  },
+);
+
 extends 'POE::Component::Syndicator';
 
-with 'Bot::Cobalt::Lang';
 with 'Bot::Cobalt::Core::Role::Singleton';
 with 'Bot::Cobalt::Core::Role::EasyAccessors';
 with 'Bot::Cobalt::Core::Role::Timers';
 with 'Bot::Cobalt::Core::Role::IRC';
+
+## FIXME test needed:
+sub rpl  {
+  my ($self, $rpl) = splice @_, 0, 2;
+
+  confess "rpl() method requires a RPL tag"
+    unless defined $rpl;
+  
+  my $string = $self->lang->{$rpl}
+    // return "Unknown RPL $rpl, vars: ".join(' ', @_);
+  
+  rplprintf( $string, @_ )
+}
 
 sub init {
   my ($self) = @_;
@@ -216,9 +283,8 @@ sub init {
     );
   }
 
-  ## Load configured langset (defaults to english)
-  my $language = ($self->cfg->{core}->{Language} //= 'english');
-  $self->lang( $self->load_langset($language) );
+  ## Language set check. Force attrib fill.
+  $self->lang;
 
   $self->_syndicator_init(
     prefix => 'ev_',  ## event prefix for sessions
@@ -347,6 +413,9 @@ sub syndicator_stopped {
   my ($kernel, $self) = @_[KERNEL, OBJECT];
 
   $kernel->alarm('core_timer_check_pool');
+
+  $self->log->debug("issuing: POCOIRC_SHUTDOWN, shutdown");
+
   $kernel->signal( $kernel, 'POCOIRC_SHUTDOWN' );
   $kernel->post( $kernel, 'shutdown' );
 

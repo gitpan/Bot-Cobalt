@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Auth;
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 
 ## "Standard" Auth module
 ##
@@ -44,6 +44,7 @@ use 5.12.1;
 
 use Bot::Cobalt;
 use Bot::Cobalt::Common;
+use Bot::Cobalt::Error;
 use Bot::Cobalt::Serializer;
 
 use strictures 1;
@@ -345,7 +346,7 @@ sub _cmd_login {
 
   unless (defined $l_user && defined $l_pass) {
     ## bad syntax resp, currently takes no args ...
-    return rplprintf( core->lang->{AUTH_BADSYN_LOGIN} );
+    return core->rpl( q{AUTH_BADSYN_LOGIN} );
   }
 
   ## NOTE: usernames in accesslist are stored lowercase per rfc1459 rules:
@@ -369,37 +370,25 @@ sub _cmd_login {
     $self->_do_login($context, $nick, $l_user, $l_pass, $origin);
     
     $rplvars->{lev} = core->auth->level($context, $nick);
-    $resp = rplprintf( core->lang->{AUTH_SUCCESS}, $rplvars );
-  } catch {
-    chomp;
 
-    ERR: {
-      if ($_ eq 'E_NOSUCH') {
-        $resp = rplprintf( core->lang->{AUTH_FAIL_NO_SUCH}, $rplvars );
-        last ERR
-      }
-      
-      if ($_ eq 'E_BADPASS') {
-         $resp = rplprintf( core->lang->{AUTH_FAIL_BADPASS}, $rplvars );
-         last ERR
-      }
-      
-      if ($_ eq 'E_BADHOST') {
-        $resp = rplprintf( core->lang->{AUTH_FAIL_BADHOST}, $rplvars );
-        last ERR
-      }
-      
-      if ($_ eq 'E_NOCHANS') {
-        $resp = rplprintf( core->lang->{AUTH_FAIL_NO_CHANS}, $rplvars );
-        last ERR
-      }
-      
-      logger->error("Unknown retval from _do_login");
-      logger->error("BUG; fell through in _cmd_login");
-    }
+    $resp = core->rpl( q{AUTH_SUCCESS}, $rplvars );
+  } catch {
+    my %rplmap = (
+      E_NOSUCH   => 'AUTH_FAIL_NO_SUCH',
+      E_BADPASS  => 'AUTH_FAIL_BADPASS',
+      E_BADHOST  => 'AUTH_FAIL_BADHOST',
+      E_NOCHANS  => 'AUTH_FAIL_NO_CHANS',
+    );
+    
+    my $rpl = $rplmap{$_};
+    
+    logger->error("BUG; unknown retval from _do_login")
+      unless defined $rpl;
+
+    $resp = core->rpl( $rpl, $rplvars );
   };
 
-  broadcast( 'notice', $context, $nick, $resp ) if $resp;
+  broadcast( 'notice', $context, $nick, $resp ) if defined $resp;
 
   return
 }
@@ -414,7 +403,7 @@ sub _cmd_chpass {
   my $auth_for_nick = core->auth->username($context, $nick);
 
   unless (defined $auth_for_nick) {
-    return rplprintf( core->lang->{RPL_NO_ACCESS},
+    return core->rpl( q{RPL_NO_ACCESS},
       nick => $nick,
     )
   }
@@ -422,7 +411,7 @@ sub _cmd_chpass {
   my $passwd_old = $msg->message_array->[1];
   my $passwd_new = $msg->message_array->[2];
   unless (defined $passwd_old && defined $passwd_new) {
-    return rplprintf( core->lang->{AUTH_BADSYN_CHPASS} );
+    return core->rpl( q{AUTH_BADSYN_CHPASS} );
   }
   
   my $user_rec = $self->_get_user_rec($context, $auth_for_nick);
@@ -433,7 +422,7 @@ sub _cmd_chpass {
   
   my $stored_pass = $user_rec->{Password};
   unless ( passwdcmp($passwd_old, $stored_pass) ) {
-    return rplprintf( core->lang->{AUTH_CHPASS_BADPASS},
+    return core->rpl( q{AUTH_CHPASS_BADPASS},
       context => $context,
       nick => $nick,
       user => $auth_for_nick,
@@ -453,7 +442,7 @@ sub _cmd_chpass {
     );
   }
 
-  return rplprintf( core->lang->{AUTH_CHPASS_SUCCESS},
+  return core->rpl( q{AUTH_CHPASS_SUCCESS},
     context => $context,
     nick => $nick,
     user => $auth_for_nick,
@@ -470,7 +459,7 @@ sub _cmd_whoami {
   my $auth_usr = core->auth->username($context, $nick) 
                  // 'Not Authorized';
 
-  return rplprintf( core->lang->{AUTH_STATUS},
+  return core->rpl( q{AUTH_STATUS},
     user => $auth_usr,
     nick => $nick,
     lev  => $auth_lev,
@@ -496,7 +485,7 @@ sub _cmd_user {
   ## Bail early if we don't know this user
   my $auth_lev = core->auth->level($context, $msg->src_nick);
   unless ($auth_lev) {
-    return rplprintf( core->lang->{RPL_NO_ACCESS},
+    return core->rpl( q{RPL_NO_ACCESS},
       nick => $msg->src_nick,
     )
   }
@@ -516,7 +505,7 @@ sub _cmd_user {
 ### Auth routines:
 
 sub _do_login {
-  ## backend handler for _cmd_login, returns constants
+  ## backend handler for _cmd_login
   ## $username should've already been normalized via lc_irc:
   my ($self, $context, $nick, $username, $passwd, $host) = @_;
 
@@ -533,7 +522,7 @@ sub _do_login {
       'NO_SUCH_USER',
     );
 
-    die "E_NOSUCH\n"
+    die Bot::Cobalt::Error->new("E_NOSUCH")
   }
 
   ## fail if we don't share channels with this user
@@ -549,7 +538,7 @@ sub _do_login {
       'NO_SHARED_CHANS',
     );
 
-    die "E_NOCHANS\n"
+    die Bot::Cobalt::Error->new("E_NOCHANS")
   }
 
   ## masks should be normalized already:
@@ -567,7 +556,7 @@ sub _do_login {
       'BAD_HOST',
     );
 
-    die "E_BADHOST\n"
+    die Bot::Cobalt::Error->new("E_BADHOST")
   }
 
   unless ( passwdcmp($passwd, $user_rec->{Password}) ) {
@@ -579,7 +568,7 @@ sub _do_login {
       'BAD_PASS',
     );
 
-    die "E_BADPASS\n"
+    die Bot::Cobalt::Error->new("E_BADPASS")
   }
 
   my $level = $user_rec->{Level};
@@ -619,7 +608,7 @@ sub _user_add {
   unless ($auth_usr) {
     ## not logged in, return rpl
     logger->info("Failed user add attempt by $nick on $context");
-    return rplprintf( core->lang->{RPL_NO_ACCESS},
+    return core->rpl( q{RPL_NO_ACCESS},
       nick => $nick,
     )
   }
@@ -635,7 +624,7 @@ sub _user_add {
       "Failed user add; $nick ($auth_usr) has insufficient perms"
     );
 
-    return rplprintf( core->lang->{AUTH_NOT_ENOUGH_ACCESS},
+    return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
       nick => $nick, 
       lev  => $auth_lev,
     )
@@ -660,7 +649,7 @@ sub _user_add {
       "Failed user add ($nick); $target_usr already exists in -ALL"
     );
     
-    return rplprintf( core->lang->{AUTH_USER_EXISTS},
+    return core->rpl( q{AUTH_USER_EXISTS},
       nick => $nick,
       user => $target_usr,
     )
@@ -671,7 +660,7 @@ sub _user_add {
       "Failed user add ($nick); $target_usr already exists on $context"
     );
 
-    return rplprintf( core->lang->{AUTH_USER_EXISTS},
+    return core->rpl( q{AUTH_USER_EXISTS},
       nick => $nick,  
       user => $target_usr,
     )
@@ -684,7 +673,7 @@ sub _user_add {
       "Failed user add; lev ($target_lev) too high for $auth_usr ($nick)"
     );
 
-    return rplprintf( core->lang->{AUTH_NOT_ENOUGH_ACCESS},
+    return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
       nick => $nick, 
       lev  => $auth_lev,
     )
@@ -712,7 +701,7 @@ sub _user_add {
     );
   }
 
-  return rplprintf( core->lang->{AUTH_USER_ADDED},
+  return core->rpl( q{AUTH_USER_ADDED},
     nick => $nick, 
     user => $target_usr,
     mask => $mask,
@@ -729,7 +718,7 @@ sub _user_del {
   
   unless ($auth_usr) {
     logger->info("Failed user del attempt by $nick on $context");
-    return rplprintf( core->lang->{RPL_NO_ACCESS},
+    return core->rpl( q{RPL_NO_ACCESS},
       nick => $nick,
     )
   }
@@ -743,7 +732,7 @@ sub _user_del {
       "Failed user del; $nick ($auth_usr) has insufficient perms"
     );
 
-    return rplprintf( core->lang->{AUTH_NOT_ENOUGH_ACCESS},
+    return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
       nick => $nick, 
       lev  => $auth_lev,
     )
@@ -760,7 +749,7 @@ sub _user_del {
   ## check if exists
   my $this_alist = $self->AccessList->{$context};
   unless (exists $this_alist->{$target_usr}) {
-    return rplprintf( core->lang->{AUTH_USER_NOSUCH},
+    return core->rpl( q{AUTH_USER_NOSUCH},
       nick => $nick, 
       user => $target_usr
     )
@@ -774,7 +763,7 @@ sub _user_del {
       "Failed user del; $nick ($auth_usr) has insufficient perms"
     );
 
-    return rplprintf( core->lang->{AUTH_NOT_ENOUGH_ACCESS},
+    return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
       nick => $nick, 
       lev  => $auth_lev
     )
@@ -804,7 +793,7 @@ sub _user_del {
     );
   }
 
-  return rplprintf( core->lang->{AUTH_USER_DELETED},
+  return core->rpl( q{AUTH_USER_DELETED},
     nick => $nick, 
     user => $target_usr
   )
@@ -817,7 +806,7 @@ sub _user_list {
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
   
-  return rplprintf( core->lang->{RPL_NO_ACCESS}, nick => $nick )
+  return core->rpl( q{RPL_NO_ACCESS}, nick => $nick )
     unless $auth_lev;
 
   ## FIXME extra opt for users w/ add perms to list -ALL ?
@@ -849,7 +838,7 @@ sub _user_whois {
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
 
-  return rplprintf( core->lang->{RPL_NO_ACCESS}, nick => $nick )
+  return core->rpl( q{RPL_NO_ACCESS}, nick => $nick )
     unless $auth_lev;
 
   my $target_nick = $msg->message_array->[2];
@@ -871,7 +860,7 @@ sub _user_info {
   my $auth_usr = core->auth->username($context, $nick);
   
   unless ($auth_lev) {
-    return rplprintf( core->lang->{RPL_NO_ACCESS}, nick => $nick );
+    return core->rpl( q{RPL_NO_ACCESS}, nick => $nick );
   }
   
   my $target_usr = $msg->message_array->[2];
@@ -883,7 +872,7 @@ sub _user_info {
   
   my $user_rec;
   unless ( $user_rec = $self->_get_user_rec($context, $target_usr) ) {
-    return rplprintf( core->lang->{AUTH_USER_NOSUCH},
+    return core->rpl( q{AUTH_USER_NOSUCH},
       nick => $nick, 
       user => $target_usr
     );
@@ -958,7 +947,7 @@ sub _user_chflags {
 
   my $alist_ref;
   unless ($alist_ref = $self->_get_user_rec($context, $target_usr) ) {
-    return rplprintf( core->lang->{AUTH_USER_NOSUCH},
+    return core->rpl( q{AUTH_USER_NOSUCH},
       nick => $nick, 
       user => $target_usr,
     )
@@ -977,7 +966,7 @@ sub _user_chflags {
       "Access denied in chflags: $src tried to chflags $target_usr"
     );
     
-    return rplprintf( core->lang->{AUTH_NOT_ENOUGH_ACCESS},
+    return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
       nick => $nick, 
       lev  => $auth_lev,
     )
@@ -1056,7 +1045,7 @@ sub _user_chmask {
 
   my $alist_ref;
   unless ( $alist_ref = $self->_get_user_rec($context, $target_usr) ) {
-    return rplprintf( core->lang->{AUTH_USER_NOSUCH},
+    return core->rpl( q{AUTH_USER_NOSUCH},
       nick => $nick, 
       user => $target_usr,
     )
@@ -1079,7 +1068,7 @@ sub _user_chmask {
       "Access denied in chmask: $src tried to chmask $target_usr"
     );
     
-    return rplprintf( core->lang->{AUTH_NOT_ENOUGH_ACCESS},
+    return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
       nick => $nick, 
       lev  => $auth_lev
     );
@@ -1096,7 +1085,7 @@ sub _user_chmask {
   if ($oper eq '+') {
     push(@{ $alist_ref->{Masks} }, $host)
       unless $host ~~ @{ $alist_ref->{Masks} };
-    $resp = rplprintf( core->lang->{AUTH_MASK_ADDED},
+    $resp = core->rpl( q{AUTH_MASK_ADDED},
       nick => $nick, 
       user => $target_usr, 
       mask => $host,
@@ -1110,7 +1099,7 @@ sub _user_chmask {
     }
     
     $alist_ref->{Masks} = \@masks;
-    $resp = rplprintf( core->lang->{AUTH_MASK_DELETED},
+    $resp = core->rpl( q{AUTH_MASK_DELETED},
       nick => $nick, 
       user => $target_usr, 
       mask => $host
@@ -1148,7 +1137,7 @@ sub _user_chpass {
 
   my $user_rec;
   unless ($user_rec = $self->_get_user_rec($context, $target_usr) ) {
-    return rplprintf( core->lang->{AUTH_USER_NOSUCH},
+    return core->rpl( q{AUTH_USER_NOSUCH},
       nick => $nick, 
       user => $target_usr,
     )
@@ -1163,7 +1152,7 @@ sub _user_chpass {
   $user_rec->{Password} = $hashed;
   
   if ( $self->_write_access_list ) {
-    return rplprintf( core->lang->{AUTH_CHPASS_SUCCESS},
+    return core->rpl( q{AUTH_CHPASS_SUCCESS},
       nick => $nick, 
       user => $target_usr,
     );
