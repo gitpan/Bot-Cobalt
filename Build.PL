@@ -106,12 +106,13 @@ my $build = $class->new(
   },
   
   configure_requires => {
-    'Module::Build' => '0.38',
+    'Module::Build' => '0.40',
   },
   
   build_requires => {
-    'Test::More' => 0,
+    'Test::Exception' => 0,
     'Test::Cmd'  => 0,
+    'Test::More' => 0,
 
     'Data::Dumper'   => 0,
     'File::Find'     => 0,
@@ -126,28 +127,21 @@ my $build = $class->new(
       'perl' => '5.12.1',
 
       'Carp' => 0,
-
       'Cwd'  => 0,
       
       'Data::Dumper'     => 0,
-
       'DB_File'          => 0,
-
-      'Digest::SHA'      => 0,
 
       'Exporter'         => 0,
 
-      'Fcntl'            => 0,
-      
+      'Fcntl'            => 0,      
       'File::Find'       => 0,
       'File::Spec'       => 0,
-      'File::Basename'   => 0,
       'File::Path'       => '2.00',
       
       'Getopt::Long'     => 0,
 
       'IO::File'         => 0,
-      'IO::Handle'       => 0,
 
       'List::Util'       => 0,
 
@@ -156,14 +150,13 @@ my $build = $class->new(
       'POSIX'            => 0,
 
       'Scalar::Util'     => 0,
-
       'Storable'         => 0,
-      
       'strictures'       => 1,
 
       'Time::HiRes'      => 0,
-
       'Try::Tiny'        => 0,
+      
+      'overload'         => 0,
       
    ### Cobalt set ###
      # Crypt
@@ -174,28 +167,18 @@ my $build = $class->new(
       'HTTP::Response' => 0,
       'URI::Escape'    => 0,
 
-     # Utils
-      'DateTime'      => 0,
-      'IRC::Utils'    => '0.12',
-      'Term::ReadKey' => 0,
-
-     # Serialization
-      'JSON'        => '2.00',
-      'YAML::XS'    => '0.34',
-
      # Logging
       'Devel::StackTrace' => '1.27',
-      'Log::Handler'      => '0.71',
 
      # Moo + related
-      'Moo'         => '0.091009',
+      'Moo'                    => '0.091009',
       'MooX::Types::MooseLike' => '0.08',
       
      # Network
       'Net::IP::Minimal' => '0.02',
 
      # POE::
-      'POE'            => '1.311',
+      'POE'              => '1.311',
 
        ## ::Resolver that doesn't fail w/ newer Socket::GetAddrInfo
        ## (Socket::GetAddrInfo is a bit unnecessary these days, it seems)
@@ -208,8 +191,16 @@ my $build = $class->new(
       'POE::Component::Syndicator'  => '0.06',
       'Object::Pluggable'           => '1.27',
 
-     # Process mgmt
+     # Process
       'Proc::PID::File' => '1.26',
+
+     # Serialization
+      'JSON::XS'       => '2.00',
+      'YAML::XS'       => '0.34',
+
+     # Utils
+      'IRC::Utils'     => '0.12',
+      'Term::ReadKey'  => 0,
   },
 
   recommends => {
@@ -218,12 +209,10 @@ my $build = $class->new(
 
     ### Utils / misc
       # terminal interaction
-      'Term::ReadLine::Perl' => 0,
-
-    ### Storage / serialization
-      'JSON::XS'    => 0,
+#      'Term::ReadLine::Perl' => 0,
 
     ### Release tools, commented for now
+#      'File::Basename'   => 0,
 #      'Dir::Self' => 0,
      # templating (cpodconv/release tools)
 #      'Template' => 0,

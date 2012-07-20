@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::Sugar;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use 5.10.1;
 use strictures 1;
@@ -21,7 +21,7 @@ our @EXPORT = qw/
 sub core {
   require Bot::Cobalt::Core;
   confess "core sugar called but no Bot::Cobalt::Core instance"
-    unless Bot::Cobalt::Core->is_instanced;
+    unless Bot::Cobalt::Core->has_instance;
   Bot::Cobalt::Core->instance
 }
 
@@ -54,7 +54,7 @@ sub irc_object ($) {
 }
 
 sub irc_context ($) {
-  core()->get_irc_context( @_ );
+  core()->get_irc_context( @_ )
 }
 
 1;

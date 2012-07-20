@@ -129,8 +129,6 @@ SEE ALSO
 
     Consult their documentation for all the gory details.
 
-    Logging facilities are provided by Log::Handler.
-
 AUTHOR
     Jon Portnoy <avenj@cobaltirc.org>
 

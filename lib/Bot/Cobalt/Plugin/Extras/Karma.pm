@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Extras::Karma;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 ## simple karma++/-- tracking
 
@@ -154,7 +154,7 @@ sub Bot_public_cmd_resetkarma {
                 || return PLUGIN_EAT_ALL;
 
   my $pcfg = $core->get_plugin_cfg($self);
-  my $req_lev = $pcfg->{PluginOpts}->{LevelRequired} || 9999;
+  my $req_lev = $pcfg->{LevelRequired} || 9999;
   return PLUGIN_EAT_ALL unless $usr_lev >= $req_lev;
 
   my $channel = $msg->target;

@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB::Database;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 ## Frontend to managing RDB-style Bot::Cobalt::DB instances
 ## I regret writing this.
@@ -33,8 +33,6 @@ use Bot::Cobalt::Error;
 use Bot::Cobalt::Utils qw/ glob_to_re_str /;
 
 use Bot::Cobalt::Plugin::RDB::SearchCache;
-
-use Digest::SHA qw/sha256_hex/;
 
 use File::Path qw/mkpath/;
 
@@ -338,7 +336,7 @@ sub put {
     die $self->error("RDB_DBFAIL")
   }
   
-  my $newkey = $self->_gen_unique_key($ref);
+  my $newkey = $self->_gen_unique_key;
   
   unless ( $db->put($newkey, $ref) ) {
     $db->dbclose;
@@ -482,16 +480,17 @@ sub cache_push {
 }
 
 sub _gen_unique_key {
-  my ($self, $ref) = @_;
+  my ($self) = @_;
+
   my $db = $self->{CURRENT} 
            || croak "_gen_unique_key called but no db to check";
-  my $stringified = "$ref" . Time::HiRes::time();
-  my $digest = sha256_hex($stringified);
-  my @splitd = split //, $digest;
-  my $newkey = join '', splice(@splitd, -4);
-  $newkey .= pop @splitd while exists $db->Tied->{$newkey} and @splitd;
+
+  my @v = ( 'a' .. 'f', 0 .. 9 );
+  my $newkey = join '', map { $v[rand @v] } 1 .. 4;
+  $newkey .= $v[rand @v] while exists $db->Tied->{$newkey};
+
   ## regen 0000 keys:
-  return $newkey || $self->_gen_unique_key($ref)
+  return $newkey || $self->_gen_unique_key
 }
 
 sub _rdb_switch {

@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::Role::Timers;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use 5.10.1;
 use strict;
@@ -144,7 +144,7 @@ sub timer_get {
   return unless $id;
 
   $self->log->debug("timer retrieved; $id")
-    if $self->debug > 2;
+    if $self->debug > 1;
 
   return $self->TimerPool->{$id}
 }

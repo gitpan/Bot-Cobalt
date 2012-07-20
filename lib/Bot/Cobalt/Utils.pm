@@ -1,5 +1,5 @@
 package Bot::Cobalt::Utils;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use 5.10.1;
 use strict;
@@ -84,15 +84,16 @@ sub rplprintf {
   ## $vars should be a hash keyed by variable, f.ex:
   ##   'user' => $username,
   ##   'err'  => $error,
-  
-  my %vars = %default_fmt_vars;
+
+  my %vars;  
+#  my %vars = %default_fmt_vars;
   
   if (@_ > 1) {
     my %args = @_;
-    $vars{$_} = delete $args{$_} for keys %args;
+    %vars = ( %default_fmt_vars, %args );
   } else {
     if (ref $_[0] eq 'HASH') {
-      $vars{$_} = $_[0]->{$_} for keys %{$_[0]}
+      %vars = ( %default_fmt_vars, %{$_[0]} );
     } else {
       confess "rplprintf() expects a hash"
     }
@@ -102,7 +103,6 @@ sub rplprintf {
     ## _repl($1, $2, $vars)
     my ($orig, $match, $varref) = @_;
     return $orig unless defined $varref->{$match};
-
     my $replace = $varref->{$match};
     return $replace
   };

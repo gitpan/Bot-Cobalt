@@ -1,5 +1,5 @@
 package Bot::Cobalt::DB;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 ## Simple interface to a DB_File
 ## Uses proper retie-after-lock technique for locking
@@ -212,6 +212,7 @@ sub dbopen {
       $_ .= "\0";
     }
   );
+
   return 1
 }
 
@@ -356,8 +357,6 @@ BerkDB is a fast and simple key/value store. This module uses JSON to
 store nested Perl data structures, providing easy database-backed 
 storage for L<Bot::Cobalt> plugins.
 
-B<< Performance will suffer miserably if you don't have L<JSON::XS>! >>
-
 =head2 Constructor
 
 B<new()> is used to create a new Bot::Cobalt::DB object representing your 
@@ -426,6 +425,9 @@ exclusive (write) lock.
 Try to call a B<dbclose> as quickly as possible to reduce locking 
 contention.
 
+dbopen() will return false (and possibly warn) if the database could 
+not be opened (probably due to lock timeout).
+
 =head3 is_open
 
 Returns a boolean value representing whether or not the DB is currently 
@@ -471,7 +473,7 @@ You can serialize/export the entirety of the DB via B<dbdump>.
   my $yamlified = $db->dbdump('YAML');
   ## YAML::XS
   my $yamlified = $db->dbdump('YAMLXS');
-  ## JSON (::XS or ::PP)
+  ## JSON::XS
   my $jsonified = $db->dbdump('JSON');
 
 See L<Bot::Cobalt::Serializer> for more on C<freeze()> and valid formats.

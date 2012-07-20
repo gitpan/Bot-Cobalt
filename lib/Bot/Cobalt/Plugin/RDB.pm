@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::RDB;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 ## 'Random' DBs, often used for quotebots or random chatter
 
@@ -18,22 +18,25 @@ use List::Util   qw/shuffle/;
 
 use Try::Tiny;
 
+use POSIX ();
+
 sub new { 
   bless {
 
+    ## Errors from DB -> RPL values:
     RPL_MAP => {
       RDB_NOTPERMITTED => "RDB_ERR_NOTPERMITTED",
 
       RDB_INVALID_NAME => "RDB_ERR_INVALID_NAME",
       
-      RDB_EXISTS      => "RDB_ERR_RDB_EXISTS",
+      RDB_EXISTS       => "RDB_ERR_RDB_EXISTS",
       
-      RDB_DBFAIL      => "RPL_DB_ERR",
+      RDB_DBFAIL       => "RPL_DB_ERR",
       
-      RDB_FILEFAILURE => "RDB_UNLINK_FAILED",
+      RDB_FILEFAILURE  => "RDB_UNLINK_FAILED",
       
-      RDB_NOSUCH      => "RDB_ERR_NO_SUCH_RDB",
-      RDB_NOSUCH_ITEM => "RDB_ERR_NO_SUCH_ITEM",
+      RDB_NOSUCH       => "RDB_ERR_NO_SUCH_RDB",
+      RDB_NOSUCH_ITEM  => "RDB_ERR_NO_SUCH_ITEM",
     },
 
   }, shift 
@@ -153,6 +156,8 @@ sub Cobalt_unregister {
   }
 
   delete core->Provided->{randstuff_items};
+  
+  core->timer_del('RANDSTUFF');
 
   return PLUGIN_EAT_NONE
 }
@@ -727,12 +732,14 @@ sub _cmd_rdb_info {
   my $added_by   = ref $item_ref eq 'HASH' ?
                    $item_ref->{AddedBy} : $item_ref->[2];
 
-  my $added_dt = DateTime->from_epoch(
-    epoch => $addedat_ts // 0
+  $rplvars->{date} = POSIX::strftime( 
+    "%Y-%m-%d", localtime( $addedat_ts )
+  );
+  
+  $rplvars->{time} = POSIX::strftime(
+    "%H:%M:%S (%Z)", localtime( $addedat_ts )
   );
 
-  $rplvars->{date} = $added_dt->date;
-  $rplvars->{time} = $added_dt->time;
   $rplvars->{addedby} = $added_by // '(undef)' ;  
 
   return core->rpl( 'RDB_ITEM_INFO', $rplvars );
@@ -1304,7 +1311,6 @@ Search for a specified glob in RDB 'main' (randstuffs):
 
 See L<Bot::Cobalt::Utils/glob_to_re_str> for details regarding glob syntax.
 
-
 =head2 randstuff
 
 Add a new "randstuff" to the 'main' RDB
@@ -1366,7 +1372,8 @@ B<< Opts->AllowDelete >> directive.
   rdb search <rdb> <glob>
 
 Search within a specific RDB. Returns a single random response from the 
-result set.
+result set. Also see L</randq> and L<Bot::Cobalt::Utils/glob_to_re_str> 
+for more details on search syntax.
 
 =head3 rdb searchidx
 

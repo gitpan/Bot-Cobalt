@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Alarmclock;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use 5.10.1;
 use strict;
@@ -133,7 +133,7 @@ sub Bot_public_cmd_alarmclock {
 
   my $cfg = plugin_cfg( $self );
 
-  my $minlevel = $cfg->{PluginOpts}->{LevelRequired} // 1;
+  my $minlevel = $cfg->{LevelRequired} // 1;
 
   ## quietly do nothing for unauthorized users
   return PLUGIN_EAT_NONE 

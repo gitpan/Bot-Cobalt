@@ -1,6 +1,16 @@
 ## TODO
 
-Plugins:
+  - Try to make sure coreset plugins are rehash-safe
+
+Needs testing:
+  - Dynamic context add / rehash / !server connect
+  - !server disconnect
+
+bin/:
+
+  - langset update tool
+
+::Plugins:
 
   - Plugins::Extras::BanMgr
     Channel ban manager plugin

@@ -1,5 +1,5 @@
 package Bot::Cobalt;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use 5.10.1;
 use strictures 1;
@@ -182,8 +182,6 @@ L<POE::Component::IRC>
 L<POE::Component::Syndicator> (and L<Object::Pluggable>)
 
 Consult their documentation for all the gory details.
-
-Logging facilities are provided by L<Log::Handler>.
 
 =head1 AUTHOR
 

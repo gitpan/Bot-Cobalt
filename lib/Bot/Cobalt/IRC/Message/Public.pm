@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC::Message::Public;
-our $VERSION = '0.012';
+our $VERSION = '0.013';
 
 use 5.10.1;
 
@@ -73,7 +73,7 @@ sub _build_cmd {
   require Bot::Cobalt::Core;
   if ( Bot::Cobalt::Core->has_instance ) {
     my $cf_core = core->get_core_cfg;
-    $cmdchar = $cf_core->{Opts}->{CmdChar} // '!' ;
+    $cmdchar = $cf_core->opts->{CmdChar} // '!' ;
   } else {
     $cmdchar = '!';
   }
