@@ -1,5 +1,5 @@
 package Bot::Cobalt::Logger::Output::Term;
-our $VERSION = '0.013';
+our $VERSION = '0.014';
 
 use strictures 1;
 
@@ -33,7 +33,9 @@ Bot::Cobalt::Logger::Output::Term - Bot::Cobalt::Logger console output
 =head1 SYNOPSIS
 
   $output_obj->add(
-    'Output::Term' => { },
+    'MyScreen' => {
+      type => 'Term',
+    },
   );
 
 See L<Bot::Cobalt::Logger::Output>.

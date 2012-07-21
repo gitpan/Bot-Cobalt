@@ -1,10 +1,11 @@
 package Bot::Cobalt::Core;
-our $VERSION = '0.013';
+our $VERSION = '0.014';
 
 ## This is the core Syndicator singleton.
 
-use 5.10.1;
+use 5.12.1;
 use strictures 1;
+
 use Carp;
 use Moo;
 
@@ -77,10 +78,20 @@ has 'log'      => (
   
   default => sub {
     my ($self) = @_;
-    Bot::Cobalt::Logger->new(
+
+    my %opts = (
       level => $self->loglevel,
-      ## FIXME configurable time_format / log_format
-    )
+    );
+    
+    if (my $log_format = $self->cfg->core->opts->{LogFormat}) {
+      $opts{log_format} = $log_format
+    }
+    
+    if (my $log_time_fmt = $self->cfg->core->opts->{LogTimeFormat}) {
+      $opts{time_format} = $log_time_fmt
+    }
+
+    Bot::Cobalt::Logger->new( %opts )
   },
 );
 

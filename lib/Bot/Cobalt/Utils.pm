@@ -1,5 +1,5 @@
 package Bot::Cobalt::Utils;
-our $VERSION = '0.013';
+our $VERSION = '0.014';
 
 use 5.10.1;
 use strict;
@@ -86,7 +86,6 @@ sub rplprintf {
   ##   'err'  => $error,
 
   my %vars;  
-#  my %vars = %default_fmt_vars;
   
   if (@_ > 1) {
     my %args = @_;
@@ -102,9 +101,7 @@ sub rplprintf {
   my $repl = sub {
     ## _repl($1, $2, $vars)
     my ($orig, $match, $varref) = @_;
-    return $orig unless defined $varref->{$match};
-    my $replace = $varref->{$match};
-    return $replace
+    defined $varref->{$match} ? $varref->{$match} : $orig
   };
 
   my $regex = qr/(%([^\s%]+)%?)/;

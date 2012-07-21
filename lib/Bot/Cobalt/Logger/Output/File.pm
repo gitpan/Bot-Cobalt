@@ -1,5 +1,5 @@
 package Bot::Cobalt::Logger::Output::File;
-our $VERSION = '0.013';
+our $VERSION = '0.014';
 
 use 5.12.1;
 use strictures 1;
@@ -169,7 +169,10 @@ Bot::Cobalt::Logger::Output::File - Bot::Cobalt::Logger file output
 =head1 SYNOPSIS
 
   $output_obj->add(
-    'Output::File' => {
+    'MyFile' => {
+      type => 'File',
+
+      ## Required:
       file => $path_to_log,
       
       ## Optional:
