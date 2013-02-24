@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Extras::TempConv;
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 ## RECEIVES AND EATS:
 ##  _public_cmd_tempconv  ( !tempconv )
@@ -49,7 +49,7 @@ sub Bot_public_cmd_temp {
 
   $temp = 0   unless $temp;
   $temp = MAX_TEMP if $temp > MAX_TEMP;
-  $type = 'F' unless $type and uc($type) ~~ [qw/F C K/];
+  $type = 'F' unless $type and grep { $_ eq uc($type) } qw/F C K/;
 
   my ($f, $k, $c);
   for (uc $type) {

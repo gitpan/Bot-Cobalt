@@ -1,5 +1,5 @@
-use Test::More tests => 32;
-use strict; use warnings;
+use Test::More tests => 37;
+use strict; use warnings FATAL => 'all';
 
 use 5.10.1;
 use Fcntl qw/ :flock /;
@@ -19,8 +19,14 @@ can_ok( $db, 'dbopen', 'dbclose', 'put', 'get', 'dbkeys' );
 
 ok( $db->dbopen, 'Temp database open' );
 
-diag("This should produce a warning:");
-ok( !$db->dbopen, 'Cannot reopen' );
+#diag("This should produce a warning:");
+{
+  local *STDERR;
+  my $myerr;
+  open *STDERR, '+<', \$myerr;
+  ok( !$db->dbopen, 'Cannot reopen' );
+  ok( $myerr, "Got no-reopen warning" );
+}
 
 is( $db->File, $path, 'Temp database File');
 
@@ -67,10 +73,14 @@ is( $db->get('intkey'), 2,
 is( $db->dbkeys, 3, "DB has expected num. of keys");
 my @keys;
 ok( @keys = $db->dbkeys, 'list dbkeys()');
-ok( 
-  'testkey' ~~ @keys
-  && 'scalarkey' ~~ @keys
-  && 'intkey' ~~ @keys,
+ok(
+
+  (
+     (grep { $_ eq 'testkey' } @keys)
+  && (grep { $_ eq 'scalarkey' } @keys)
+  && (grep { $_ eq 'intkey' } @keys)
+  ),
+
   'DB has expected keys'
 );
 
@@ -78,6 +88,14 @@ ok( $db->del('intkey'), 'Database del() 1' );
 ok( $db->del('testkey'), 'Database del() 2' );
 is( $db->dbkeys, 1, "DB has expected keys after del");
 is( ($db->dbkeys)[0], 'scalarkey', "DB has expected key after del");
+
+ok( $db->put('unicode', "\x{263A}"), "UTF8 put()" );
+is( $db->get('unicode'), "\x{263A}", "UTF8 get()" );
+
+my $uni = "\x{263A}";
+utf8::encode($uni);
+ok( $db->put($uni, "Data"), "UTF8 encoded key put()" );
+is( $db->get($uni), "Data", "UTF8 encoded key get()" );
 
 $db->dbclose;
 

@@ -45,11 +45,11 @@ will need to declare a proper $VERSION:
   my $build = Module::Build->new(
     module_name   => "Bot::Cobalt::Plugin::User::MyPlugin",
     dist_abstract => "My Bot::Cobalt plugin",
-    dist_author   => "Me <myself@example.ext>",
+    dist_author   => 'Me <myself@example.ext>',
     license => 'perl',
     create_makefile_pl => 'small',
     requires => {
-      'Bot::Cobalt::Core' => '0.200',
+      'Bot::Cobalt' => 0.01,
     },
   );
   $build->create_build_script;
@@ -73,11 +73,6 @@ C<cpan> by unpacking your plugin dist and specifying the local directory:
 
    # may need root access (or perhaps L<local::lib>):
   $ ./Build install
-
-L<App::cpanminus> makes this even easier:
-
-   # Easy install via cpanm:
-  $ cpanm ./Bot-Cobalt-Plugin-MyPlugin-0.001.tar.gz
 
 When your plugin is release-ready, please consider posting it to CPAN.
 

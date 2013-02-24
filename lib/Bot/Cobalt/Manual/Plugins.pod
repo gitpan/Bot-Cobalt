@@ -11,7 +11,9 @@ L<Bot::Cobalt> plugins.
 
 For a quick-start guide, try L<Bot::Cobalt::Manual::Plugins::Tutorial>.
 
-Refer to L</SEE ALSO> for other relevant documentation.
+Refer to L</SEE ALSO> for other relevant documentation, such as instructions
+on packaging up your plugin for installation.
+
 Plugin authors likely want to at least read the L<Bot::Cobalt::IRC> POD.
 
 =head1 PLUGIN FUNDAMENTALS
@@ -1434,6 +1436,12 @@ L<Bot:Cobalt::IRC> covers events handled and emitted by the IRC plugin.
 
 L<Bot::Cobalt::Manual::Plugins::Tutorial> contains a simple walk-through 
 tutorial on plugin writing.
+
+L<Bot::Cobalt::Manual::Plugins::Config> describes configuration files used by
+plugins.
+
+L<Bot::Cobalt::Manual::Plugins::Dist> covers packaging your module for
+installation.
 
 L<Bot::Cobalt::Core::Sugar> describes functional sugar imported when you 
 C<use Bot::Cobalt;>.

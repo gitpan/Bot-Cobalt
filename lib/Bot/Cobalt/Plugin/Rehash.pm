@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Rehash;
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 use 5.12.1;
 
@@ -12,6 +12,8 @@ use File::Spec;
 use Try::Tiny;
 
 use strictures 1;
+
+use namespace::clean -except => 'meta';
 
 sub new { bless [], shift }
 

@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Auth;
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 ## "Standard" Auth module
 ##
@@ -59,10 +59,12 @@ use File::Spec;
 sub ACCESS_LIST() { 0 }
 sub DB_PATH()     { 1 }
 
+use namespace::clean -except => 'meta';
+
 sub new {
   bless [
     {}, ## ACCESS_LIST
-    '', ## DB_PATH  
+    '', ## DB_PATH
   ], shift
 }
 
@@ -82,7 +84,7 @@ sub Cobalt_register {
   logger->debug("Using authdb path $authdb");
 
   $self->_db_path($authdb);
-  
+
   ## Read in main authdb:
   my $alist = $self->_read_access_list;
 
@@ -91,7 +93,7 @@ sub Cobalt_register {
   }
 
   $self->AccessList( $alist );
-  
+
   $self->_init_superusers;
 
   register($self, 'SERVER',
@@ -131,7 +133,7 @@ sub Cobalt_unregister {
 
 sub _init_superusers {
   my ($self) = @_;
-  
+
   my $p_cfg = plugin_cfg($self);
 
   ## Read in configured superusers to AccessList
@@ -145,14 +147,14 @@ sub _init_superusers {
   }
 
   my %su = %$superusers;
-  
+
   SERVER: for my $context (keys %su) {
 
     unless (ref $su{$context} eq 'HASH') {
       logger->error("Skipping $context; configuration is not a hash");
       next SERVER
     }
-  
+
     USER: for my $user (keys %{$su{$context}}) {
       unless (ref $su{$context}->{$user} eq 'HASH') {
         logger->error("Skipping $user; configuration is not a hash");
@@ -162,7 +164,7 @@ sub _init_superusers {
       ## Usernames on accesslist automatically get lowercased
       ## per rfc1459 rules, aka CASEMAPPING=rfc1459
       ## (we probably don't even know the server's CASEMAPPING= yet)
-      $user = lc_irc $user;
+      my $lc_user = lc_irc($user);
 
       my $flags = ref $su{$context}->{$user}->{Flags} eq 'HASH' ?
         $su{$context}->{$user}->{Flags}
@@ -170,7 +172,7 @@ sub _init_superusers {
 
       $flags->{SUPERUSER} = 1;
 
-      $self->AccessList->{$context}->{$user} = {
+      $self->AccessList->{$context}->{$lc_user} = {
         Password => $su{$context}->{$user}->{Password}
                      // $self->_mkpasswd(rand 10),
         Level => 9999,
@@ -178,23 +180,23 @@ sub _init_superusers {
       };
 
       ## Mask and Masks are both valid directives, Mask trumps Masks
-      if (exists $su{$context}->{$user}->{Masks} 
-          && !exists $su{$context}->{$user}->{Mask} ) 
+      if (exists $su{$context}->{$user}->{Masks}
+          && !exists $su{$context}->{$user}->{Mask} )
       {
-        $su{$context}->{$user}->{Mask} = 
+        $su{$context}->{$user}->{Mask} =
           delete $su{$context}->{$user}->{Masks};
       }
 
       ## the Mask specification in cfg may be an array or a string:
       if (ref $su{$context}->{$user}->{Mask} eq 'ARRAY') {
-          $self->AccessList->{$context}->{$user}->{Masks} = [
+          $self->AccessList->{$context}->{$lc_user}->{Masks} = [
             ## normalize masks into full, matchable masks:
-            map { normalize_mask($_) } 
+            map {; normalize_mask($_) }
               @{ $su{$context}->{$user}->{Mask} }
           ];
       } else {
-          $self->AccessList->{$context}->{$user}->{Masks} = [ 
-            normalize_mask( $su{$context}->{$user}->{Mask} ) 
+          $self->AccessList->{$context}->{$lc_user}->{Masks} = [
+            normalize_mask( $su{$context}->{$user}->{Mask} )
           ];
       }
 
@@ -350,7 +352,7 @@ sub _cmd_login {
   }
 
   ## NOTE: usernames in accesslist are stored lowercase per rfc1459 rules:
-  $l_user = lc_irc $l_user;
+  $l_user = lc_irc($l_user);
 
   ## IMPORTANT:
   ## nicknames (for auth hash) remain unmolested
@@ -368,7 +370,7 @@ sub _cmd_login {
 
   try {
     $self->_do_login($context, $nick, $l_user, $l_pass, $origin);
-    
+
     $rplvars->{lev} = core->auth->level($context, $nick);
 
     $resp = core->rpl( q{AUTH_SUCCESS}, $rplvars );
@@ -379,9 +381,9 @@ sub _cmd_login {
       E_BADHOST  => 'AUTH_FAIL_BADHOST',
       E_NOCHANS  => 'AUTH_FAIL_NO_CHANS',
     );
-    
+
     my $rpl = $rplmap{$_};
-    
+
     logger->error("BUG; unknown retval from _do_login")
       unless defined $rpl;
 
@@ -407,19 +409,19 @@ sub _cmd_chpass {
       nick => $nick,
     )
   }
-  
+
   my $passwd_old = $msg->message_array->[1];
   my $passwd_new = $msg->message_array->[2];
   unless (defined $passwd_old && defined $passwd_new) {
     return core->rpl( q{AUTH_BADSYN_CHPASS} );
   }
-  
+
   my $user_rec = $self->_get_user_rec($context, $auth_for_nick);
-  
+
   if ($user_rec->{Flags}->{SUPERUSER}) {
     return "Superusers are hard-coded and cannot chpass"
   }
-  
+
   my $stored_pass = $user_rec->{Password};
   unless ( passwdcmp($passwd_old, $stored_pass) ) {
     return core->rpl( q{AUTH_CHPASS_BADPASS},
@@ -429,7 +431,7 @@ sub _cmd_chpass {
       src => $msg->src,
     )
   }
-  
+
   $user_rec->{Password} = $self->_mkpasswd($passwd_new);
 
   unless ( $self->_write_access_list ) {
@@ -456,14 +458,14 @@ sub _cmd_whoami {
   my $nick = $msg->src_nick;
 
   my $auth_lev = core->auth->level($context, $nick);
-  my $auth_usr = core->auth->username($context, $nick) 
+  my $auth_usr = core->auth->username($context, $nick)
                  // 'Not Authorized';
 
   return core->rpl( q{AUTH_STATUS},
     user => $auth_usr,
     nick => $nick,
     lev  => $auth_lev,
-  )  
+  )
 }
 
 sub _cmd_user {
@@ -604,7 +606,7 @@ sub _user_add {
   my $nick = $msg->src_nick;
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
-  
+
   unless ($auth_usr) {
     ## not logged in, return rpl
     logger->info("Failed user add attempt by $nick on $context");
@@ -614,9 +616,9 @@ sub _user_add {
   }
 
   my $pcfg = plugin_cfg($self);
-  
+
   my $required_base_lev = $pcfg->{RequiredPrivs}->{AddingUsers} // 2;
-  
+
   unless ($auth_lev >= $required_base_lev) {
     ## doesn't match configured required base level
     ## otherwise this user can add users with lower access levs than theirs
@@ -625,7 +627,7 @@ sub _user_add {
     );
 
     return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
-      nick => $nick, 
+      nick => $nick,
       lev  => $auth_lev,
     )
   }
@@ -637,35 +639,35 @@ sub _user_add {
   unless ($target_usr && $target_lev && $mask && $passwd) {
     return "Usage: user add <username> <level> <mask> <initial_passwd>"
   }
-  
+
   $target_usr = lc_irc($target_usr);
-  
+
   unless ($target_lev =~ /^\d+$/) {
     return "Usage: user add <username> <level> <mask> <initial_passwd>"
   }
-  
+
   if ( exists $self->AccessList->{'-ALL'}->{$target_usr} ) {
     logger->warn(
       "Failed user add ($nick); $target_usr already exists in -ALL"
     );
-    
+
     return core->rpl( q{AUTH_USER_EXISTS},
       nick => $nick,
       user => $target_usr,
     )
   }
-  
+
   if ( exists $self->AccessList->{$context}->{$target_usr} ) {
     logger->warn(
       "Failed user add ($nick); $target_usr already exists on $context"
     );
 
     return core->rpl( q{AUTH_USER_EXISTS},
-      nick => $nick,  
+      nick => $nick,
       user => $target_usr,
     )
   }
-  
+
   unless ($target_lev < $auth_lev) {
     ## user doesn't have enough access to add this level
     ## (superusers have to be hardcoded in auth.conf)
@@ -674,24 +676,24 @@ sub _user_add {
     );
 
     return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
-      nick => $nick, 
+      nick => $nick,
       lev  => $auth_lev,
     )
   }
 
   $mask = normalize_mask($mask);
-  
+
   ## add to AccessList
   $self->AccessList->{$context}->{$target_usr} = {
     Masks    => [ $mask ],
-    Password => $self->_mkpasswd($passwd),  
+    Password => $self->_mkpasswd($passwd),
     Level    => $target_lev,
     Flags    => {},
   };
 
   logger->info("New user added by $nick ($auth_usr)");
   logger->info("New user $target_usr ($mask) level $target_lev");
-  
+
   unless ( $self->_write_access_list ) {
     ## added to AccessList but couldn't be written out
     logger->warn("Couldn't _write_access_list in _user_add");
@@ -702,7 +704,7 @@ sub _user_add {
   }
 
   return core->rpl( q{AUTH_USER_ADDED},
-    nick => $nick, 
+    nick => $nick,
     user => $target_usr,
     mask => $mask,
     lev  => $target_lev,
@@ -715,7 +717,7 @@ sub _user_del {
   my $nick = $msg->src_nick;
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
-  
+
   unless ($auth_usr) {
     logger->info("Failed user del attempt by $nick on $context");
     return core->rpl( q{RPL_NO_ACCESS},
@@ -724,16 +726,16 @@ sub _user_del {
   }
 
   my $pcfg = plugin_cfg($self);
-  
+
   my $required_base_lev = $pcfg->{RequiredPrivs}->{DeletingUsers} // 2;
-  
+
   unless ($auth_lev >= $required_base_lev) {
     logger->info(
       "Failed user del; $nick ($auth_usr) has insufficient perms"
     );
 
     return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
-      nick => $nick, 
+      nick => $nick,
       lev  => $auth_lev,
     )
   }
@@ -743,20 +745,20 @@ sub _user_del {
   unless ($target_usr) {
     return "Usage: user del <username>"
   }
-  
+
   $target_usr = lc_irc($target_usr);
-  
+
   ## check if exists
   my $this_alist = $self->AccessList->{$context};
   unless (exists $this_alist->{$target_usr}) {
     return core->rpl( q{AUTH_USER_NOSUCH},
-      nick => $nick, 
+      nick => $nick,
       user => $target_usr
     )
   }
-  
+
   ## get target user's auth_level
-  ## check if authed user has a higher identified level  
+  ## check if authed user has a higher identified level
   my $target_lev = $this_alist->{$target_usr}->{Level};
   unless ($target_lev < $auth_lev) {
     logger->info(
@@ -764,7 +766,7 @@ sub _user_del {
     );
 
     return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
-      nick => $nick, 
+      nick => $nick,
       lev  => $auth_lev
     )
   }
@@ -774,7 +776,7 @@ sub _user_del {
 
   logger->info("User deleted: $target_usr ($target_lev) on $context");
   logger->info("Deletion issued by $nick ($auth_usr)");
-  
+
   ## see if user is logged in, log them out if so
   my $auth_context = core->auth->list($context);
   for my $authnick (keys %$auth_context) {
@@ -784,7 +786,7 @@ sub _user_del {
 
     $self->_do_logout($context, $authnick);
   }
-  
+
   unless ( $self->_write_access_list ) {
     logger->warn("Couldn't _write_access_list in _user_add");
 
@@ -794,7 +796,7 @@ sub _user_del {
   }
 
   return core->rpl( q{AUTH_USER_DELETED},
-    nick => $nick, 
+    nick => $nick,
     user => $target_usr
   )
 }
@@ -805,19 +807,19 @@ sub _user_list {
   my $nick = $msg->src_nick;
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
-  
+
   return core->rpl( q{RPL_NO_ACCESS}, nick => $nick )
     unless $auth_lev;
 
   ## FIXME extra opt for users w/ add perms to list -ALL ?
   my $alist = $self->AccessList->{$context} // {};
-  
+
   my $respstr = "Users ($context): ";
 
   USER: for my $username (keys %$alist) {
     my $lev = $alist->{$username}->{Level};
     $respstr .= "$username ($lev)   ";
-    
+
     if ( length($respstr) > 250 ) {
       broadcast( 'message', $context, $nick,
         $respstr
@@ -825,7 +827,7 @@ sub _user_list {
 
       $respstr = '';
     }
-    
+
   } ## USER
 
   return $respstr if $respstr
@@ -842,7 +844,7 @@ sub _user_whois {
     unless $auth_lev;
 
   my $target_nick = $msg->message_array->[2];
-  
+
   if ( my $target_lev = core->auth->level($context, $target_nick) ) {
     my $target_usr = core->auth->username($context, $target_nick);
 
@@ -858,35 +860,35 @@ sub _user_info {
 
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
-  
+
   unless ($auth_lev) {
     return core->rpl( q{RPL_NO_ACCESS}, nick => $nick );
   }
-  
+
   my $target_usr = $msg->message_array->[2];
   unless (defined $target_usr) {
     return 'Usage: user info <username>'
   }
-  
+
   $target_usr = lc_irc($target_usr);
-  
+
   my $user_rec;
   unless ( $user_rec = $self->_get_user_rec($context, $target_usr) ) {
     return core->rpl( q{AUTH_USER_NOSUCH},
-      nick => $nick, 
+      nick => $nick,
       user => $target_usr
     );
   }
 
   my $usr_lev     = $user_rec->{Level};
   my $usr_maskref = $user_rec->{Masks};
-  
+
   my $maskcount = @$usr_maskref;
 
   broadcast( 'message', $context, $nick,
     "User $target_usr is level $usr_lev, $maskcount masks listed"
   );
-  
+
   my @flags = keys %{ $user_rec->{Flags} };
 
   my $flag_repl = "Flags: ";
@@ -911,7 +913,7 @@ sub _user_info {
     }
   }
 
-  return    
+  return
 }
 
 sub _user_search {
@@ -930,13 +932,13 @@ sub _user_search {
 sub _user_chflags {
   my ($self, $context, $msg) = @_;
   my $nick = $msg->src_nick;
-  
+
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
-  
+
   my $pcfg = plugin_cfg($self);
   my $req_lev = $pcfg->{RequiredPrivs}->{DeletingUsers};
-  
+
   my @message = @{ $msg->message_array };
   my $target_usr = $message[2];
   my @flags = @message[3 .. $#message];
@@ -948,26 +950,26 @@ sub _user_chflags {
   my $alist_ref;
   unless ($alist_ref = $self->_get_user_rec($context, $target_usr) ) {
     return core->rpl( q{AUTH_USER_NOSUCH},
-      nick => $nick, 
+      nick => $nick,
       user => $target_usr,
     )
   }
-  
+
   my $target_usr_lev = $alist_ref->{Level};
-  
+
   my $auth_flags = core->auth->flags($context, $nick);
 
-  unless ($auth_lev >= $req_lev 
+  unless ($auth_lev >= $req_lev
     && ($auth_lev > $target_usr_lev || $auth_usr eq $target_usr
         || $auth_flags->{SUPERUSER}) )  {
-    
+
     my $src = $msg->src;
     logger->warn(
       "Access denied in chflags: $src tried to chflags $target_usr"
     );
-    
+
     return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
-      nick => $nick, 
+      nick => $nick,
       lev  => $auth_lev,
     )
   }
@@ -976,38 +978,38 @@ sub _user_chflags {
   FLAG: for my $this_flag (@flags) {
     my $first = substr($this_flag, 0, 1, '');
     $this_flag = uc($this_flag||'');
-    
+
     unless ($first && $this_flag) {
       return "Bad syntax; flags should be in the form of -/+FLAG"
     }
-    
+
     if ($this_flag eq 'SUPERUSER') {
       return "Cannot set SUPERUSER flag manually"
     }
-    
+
     for ($first) {
       when ("+") {
         logger->debug(
           "$nick ($auth_usr) flag add $target_usr $this_flag"
         );
-        
+
         $alist_ref->{Flags}->{$this_flag} = 1;
       }
-      
+
       when ("-") {
         logger->debug(
           "$nick ($auth_usr) flag drop $target_usr $this_flag"
         );
-        
+
         delete $alist_ref->{Flags}->{$this_flag};
       }
-      
+
       default {
         return "Bad syntax; flags should be prefixed by + or -"
       }
-    
+
     }
-    
+
   }  ## FLAG
 
   if ( $self->_write_access_list ) {
@@ -1019,7 +1021,7 @@ sub _user_chflags {
       "List write failed in _user_chflags, admin should check logs"
     );
   }
-  
+
   return
 }
 
@@ -1028,17 +1030,17 @@ sub _user_chmask {
   my $nick = $msg->src_nick;
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
-  
+
   my $pcfg = plugin_cfg($self);
-  ## If you can't delete users, you probably shouldn't be permitted 
+  ## If you can't delete users, you probably shouldn't be permitted
   ## to delete their masks, either
   my $req_lev = $pcfg->{RequiredPrivs}->{DeletingUsers};
-  
+
   ## You also should have higher access than your target
   ## (unless you're a superuser)
   my $target_usr    = $msg->message_array->[2];
   my $mask_specified = $msg->message_array->[3];
-  
+
   unless ($target_usr && $mask_specified) {
     return "Usage: user chmask <user> [+/-]<mask>"
   }
@@ -1046,48 +1048,48 @@ sub _user_chmask {
   my $alist_ref;
   unless ( $alist_ref = $self->_get_user_rec($context, $target_usr) ) {
     return core->rpl( q{AUTH_USER_NOSUCH},
-      nick => $nick, 
+      nick => $nick,
       user => $target_usr,
     )
   }
-  
+
   my $target_usr_lev = $alist_ref->{Level};
   my $flags = core->auth->flags($context, $nick);
-  
-  ## Must be: 
+
+  ## Must be:
   ##  higher than target user's lev
   ##   or adjusting your own mask
   ##   or superuser
-  unless ($auth_lev >= $req_lev 
+  unless ($auth_lev >= $req_lev
     && ($auth_lev > $target_usr_lev || $auth_usr eq $target_usr
         || $flags->{SUPERUSER}) )  {
-    
+
     my $src = $msg->src;
 
     logger->warn(
       "Access denied in chmask: $src tried to chmask $target_usr"
     );
-    
+
     return core->rpl( q{AUTH_NOT_ENOUGH_ACCESS},
-      nick => $nick, 
+      nick => $nick,
       lev  => $auth_lev
     );
   }
-  
+
   my ($oper, $host) = $mask_specified =~ /^(\+|\-)(\S+)/;
   unless ($oper && $host) {
     return "Bad mask specification, should be operator (+ or -) followed by mask"
   }
-  
+
   $host = normalize_mask($host);
 
   my $resp;
   if ($oper eq '+') {
     push(@{ $alist_ref->{Masks} }, $host)
-      unless $host ~~ @{ $alist_ref->{Masks} };
+      unless grep { $_ eq $host } @{ $alist_ref->{Masks} };
     $resp = core->rpl( q{AUTH_MASK_ADDED},
-      nick => $nick, 
-      user => $target_usr, 
+      nick => $nick,
+      user => $target_usr,
       mask => $host,
     );
   } else {
@@ -1097,11 +1099,11 @@ sub _user_chmask {
     if (@masks == @{$alist_ref->{Masks}}) {
       return "Mask not found."
     }
-    
+
     $alist_ref->{Masks} = \@masks;
     $resp = core->rpl( q{AUTH_MASK_DELETED},
-      nick => $nick, 
-      user => $target_usr, 
+      nick => $nick,
+      user => $target_usr,
       mask => $host
     );
   }
@@ -1123,14 +1125,14 @@ sub _user_chpass {
   my $nick = $msg->src_nick;
   my $auth_lev = core->auth->level($context, $nick);
   my $auth_usr = core->auth->username($context, $nick);
-  
+
   unless (core->auth->has_flag($context, $nick, 'SUPERUSER')) {
     return "Must be flagged SUPERUSER to use user chpass"
   }
-  
+
   my $target_usr = $msg->message_array->[2];
   my $new_passwd  = $msg->message_array->[3];
-  
+
   unless ($target_usr && $new_passwd) {
     return "Usage: user chpass <username> <new_passwd>"
   }
@@ -1138,29 +1140,29 @@ sub _user_chpass {
   my $user_rec;
   unless ($user_rec = $self->_get_user_rec($context, $target_usr) ) {
     return core->rpl( q{AUTH_USER_NOSUCH},
-      nick => $nick, 
+      nick => $nick,
       user => $target_usr,
     )
   }
-  
+
   my $hashed = $self->_mkpasswd($new_passwd);
-  
+
   logger->info(
     "$nick ($auth_usr) CHPASS for $target_usr"
   );
-  
+
   $user_rec->{Password} = $hashed;
-  
+
   if ( $self->_write_access_list ) {
     return core->rpl( q{AUTH_CHPASS_SUCCESS},
-      nick => $nick, 
+      nick => $nick,
       user => $target_usr,
     );
   } else {
     logger->warn(
       "Couldn't _write_access_list in _cmd_chpass",
     );
-    
+
     return "Failed access list write! Admin should check logs."
   }
 }
@@ -1170,16 +1172,16 @@ sub _user_chpass {
 
 sub _get_user_rec {
   my ($self, $context, $user) = @_;
-  
+
   ## Return user AccessList record, preferring hardcoded -ALL:
-  
+
   confess "_get_user_rec called without required arguments"
     unless defined $context and defined $user;
-  
+
   return unless exists $self->AccessList->{'-ALL'}->{$user}
     or  exists $self->AccessList->{$context}
     and exists $self->AccessList->{$context}->{$user};
-  
+
   exists $self->AccessList->{'-ALL'}->{$user} ?
     $self->AccessList->{'-ALL'}->{$user}
     : $self->AccessList->{$context}->{$user}
@@ -1215,7 +1217,7 @@ sub _remove_if_lost {
       ## if they're auth'd and their authorization is "ours", kill it
       ## call _do_logout to log them out and notify the pipeline
       ##
-      ## _do_logout handles the messy details, incl. checking to make sure 
+      ## _do_logout handles the messy details, incl. checking to make sure
       ## that we are the "owner" of this auth:
       push(@removed, $nick) if $self->_do_logout($context, $nick);
     }
@@ -1340,21 +1342,21 @@ sub _mkpasswd {
 sub _db_path {
   my ($self, $dbpath) = @_;
 
-  return $self->[DB_PATH] = $dbpath if defined $dbpath;  
+  return $self->[DB_PATH] = $dbpath if defined $dbpath;
 
   $self->[DB_PATH]
 }
 
 sub AccessList {
   my ($self, $alist) = @_;
-  
+
   if (defined $alist) {
     confess "AccessList is not a hashref"
       unless ref $alist eq 'HASH';
-    
+
     return $self->[ACCESS_LIST] = $alist
   }
-  
+
   $self->[ACCESS_LIST]
 }
 
@@ -1376,14 +1378,14 @@ sub _read_access_list {
   }
 
   my $serializer = Bot::Cobalt::Serializer->new();
-  
+
   my $accesslist;
   try {
     $accesslist = $serializer->readfile($authdb);
   } catch {
     logger->error("readfile() failure; $authdb $_");
   };
-  
+
   return $accesslist
 }
 
@@ -1414,7 +1416,7 @@ sub _write_access_list {
   return $authdb unless keys %$cloned;
 
   my $serializer = Bot::Cobalt::Serializer->new();
-  
+
   return $authdb if try {
     $serializer->writefile($authdb, $cloned);
 
@@ -1440,7 +1442,7 @@ Bot::Cobalt::Plugin::Auth -- User management and auth plugin
 
 =head1 DESCRIPTION
 
-This plugin provides the standard authorization and access control 
+This plugin provides the standard authorization and access control
 functionality for L<Bot::Cobalt>.
 
 =head1 CONFIGURATION
@@ -1576,7 +1578,7 @@ Alter a user's password manually. Only usable by superusers.
 Add or remove authorized masks for a particular user.
 
 You can add or remove masks for yourself at any time, so long as you 
-have at least L</DeletingUsers> level (see L</RequiredPrivs). Altering 
+have at least L</DeletingUsers> level (see L</RequiredPrivs>). Altering 
 masks for other users requires a higher access level than theirs.
 
 Only one mask can be added or deleted at a time.

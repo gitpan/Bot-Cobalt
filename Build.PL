@@ -10,6 +10,7 @@ my $class = Module::Build->subclass(
     sub ACTION_release {
       my $self = shift;
       $self->dispatch('versionify');
+      $self->dispatch('test');
       $self->dispatch('wikidocs');
       $self->dispatch('dist');
     }
@@ -31,7 +32,7 @@ my $class = Module::Build->subclass(
       );
       chdir($base);
     }
-    
+
     sub ACTION_versionify {
       my $self = shift;
 
@@ -52,27 +53,23 @@ my $class = Module::Build->subclass(
               or die "open: $path $!";
             my @thisf = readline($fh);
             close $fh;
-            
-            my $package_l = shift @thisf || return;
+
+            my $package_l = $thisf[0] || return;
             my $pkg;
             unless (($pkg) = $package_l =~ /^package\s+(\S+)$/) {
               warn "\nSkipping, no package: $path\n";
               return
             }
-            
+
             ++$x;
             print ". ";
-            
+
             my $v_line = "our \$VERSION = '$vers';\n";
-            
-            if ($thisf[0] =~ /VERSION/) {
-              $thisf[0] = $v_line
-            } else {
-              unshift(@thisf, $v_line)
+
+            if ($thisf[1] =~ /VERSION/) {
+              $thisf[1] = $v_line
             }
-            
-            unshift(@thisf, $package_l);
-            
+
             open $fh, '>', $path
               or die "open: $path $!";
             print $fh @thisf;
@@ -92,23 +89,23 @@ my $build = $class->new(
   dist_abstract => 'Pluggable IRC darkbot-alike',
   dist_author   => 'Jon Portnoy <avenj@cobaltirc.org>',
   license => 'perl',
-  
+
   create_readme => 1,
 
   recursive_test_files => 1,
 
   ## A passthru-to-build makefile:
   create_makefile_pl => 'small',
-  
+
   PL_files => {
     'lib/Bot/Cobalt/Lang.pm.PL' => 'lib/Bot/Cobalt/Lang.pm',
     'bin/cobalt2-installer.PL' => 'bin/cobalt2-installer',
   },
-  
+
   configure_requires => {
     'Module::Build' => '0.40',
   },
-  
+
   build_requires => {
     'Test::Exception' => 0,
     'Test::Cmd'  => 0,
@@ -128,17 +125,17 @@ my $build = $class->new(
 
       'Carp' => 0,
       'Cwd'  => 0,
-      
+
       'Data::Dumper'     => 0,
       'DB_File'          => 0,
 
       'Exporter'         => 0,
 
-      'Fcntl'            => 0,      
+      'Fcntl'            => 0,
       'File::Find'       => 0,
       'File::Spec'       => 0,
       'File::Path'       => '2.00',
-      
+
       'Getopt::Long'     => 0,
 
       'IO::File'         => 0,
@@ -155,9 +152,9 @@ my $build = $class->new(
 
       'Time::HiRes'      => 0,
       'Try::Tiny'        => 0,
-      
+
       'overload'         => 0,
-      
+
    ### Cobalt set ###
      # Crypt
       'App::bmkpasswd' => '1.06',
@@ -173,17 +170,18 @@ my $build = $class->new(
      # Moo + related
       'Moo'                    => '0.091009',
       'MooX::Types::MooseLike' => '0.08',
-      
+      'namespace::clean'       => 0,
+
      # Network
-      'Net::IP::Minimal' => '0.02',
+      'Net::IP::Minimal' => '0.04',
 
      # POE::
       'POE'              => '1.311',
 
        ## ::Resolver that doesn't fail w/ newer Socket::GetAddrInfo
        ## (Socket::GetAddrInfo is a bit unnecessary these days, it seems)
-      'POE::Component::Resolver'     => '0.920', 
-       ## Above also applies to Client::HTTP:     
+      'POE::Component::Resolver'     => '0.920',
+       ## Above also applies to Client::HTTP:
       'POE::Component::Client::HTTP' => '0.947',
       'POE::Component::Client::Keepalive' => '0',
       'POE::Component::Client::DNS'  => 0,

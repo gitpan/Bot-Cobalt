@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Version;
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 use 5.10.1;
 use strict;
@@ -10,6 +10,8 @@ use Bot::Cobalt;
 use Object::Pluggable::Constants qw/ :ALL /;
 
 use Bot::Cobalt::Utils qw/ secs_to_str /;
+
+use namespace::clean -except => 'meta';
 
 sub new { bless [], shift  }
 

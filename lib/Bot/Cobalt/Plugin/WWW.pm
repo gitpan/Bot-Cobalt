@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::WWW;
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 use 5.10.1;
 use strictures 1;
@@ -11,6 +11,8 @@ use POE qw/
   Component::Client::HTTP
   Component::Client::Keepalive
 /;
+
+use namespace::clean -except => 'meta';
 
 sub opts {
   my $opts = core->get_plugin_cfg($_[0])->{Opts};
@@ -30,6 +32,10 @@ sub timeout {
   $_[0]->opts->{Timeout}    || 90
 }
 
+sub max_per_host {
+  $_[0]->opts->{MaxPerHost} || 5
+}
+
 sub max_workers {
   $_[0]->opts->{MaxWorkers} || 25
 }
@@ -43,7 +49,7 @@ sub new { bless {}, shift }
 sub Cobalt_register {
   my ($self, $core) = splice @_, 0, 2;
 
-  $core->plugin_register( $self, 'SERVER',
+  register( $self, 'SERVER',
      'www_request',
   );
     
@@ -165,16 +171,19 @@ sub _start {
   $opts{Timeout}  = $self->timeout;
 
   ## Create "ht_${plugin_alias}" session
-  ## We use a very short keepalive; HTTP reqs are usually one-offs
   POE::Component::Client::HTTP->spawn(
+
     FollowRedirects => 5,
+
     Agent => __PACKAGE__,
+
     Alias => 'ht_'. core()->get_plugin_alias($self),
+
     ConnectionManager => POE::Component::Client::Keepalive->new(
-      keep_alive   => 2,
-      max_per_host => 4,
-      max_open => $self->max_workers,
-      timeout  => $self->timeout,
+      keep_alive   => 1,
+      max_per_host => $self->max_per_host,
+      max_open     => $self->max_workers,
+      timeout      => $self->timeout,
     ),
     
     %opts,

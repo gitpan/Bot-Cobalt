@@ -1,5 +1,5 @@
 package Bot::Cobalt::Serializer;
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 use 5.10.1;
 use strictures 1;
@@ -17,63 +17,66 @@ use Bot::Cobalt::Common qw/:types/;
 
 use Time::HiRes qw/sleep/;
 
+
+use namespace::clean -except => 'meta';
+
+
 has 'Format' => (
-  is  => 'rw', 
+  is  => 'rw',
   isa => Str,
-  
+
   default => sub { 'YAMLXS' },
-  
+
   trigger => sub {
     my ($self, $format) = @_;
 
     $format = uc($format);
 
     confess "Unknown format $format"
-      unless $format ~~ [ keys %{ $self->_types } ];
+      unless grep { $_ eq $format } keys %{ $self->_types };
 
     confess "Requested format $format but can't find a module for it"
       unless $self->_check_if_avail($format)
   },
 );
 
-has '_types' => ( 
+has '_types' => (
   lazy => 1,
 
-  is  => 'ro', 
-  isa => HashRef, 
+  is  => 'ro',
+  isa => HashRef,
 
   default => sub {
     {
       YAML   => 'YAML::Syck',
       YAMLXS => 'YAML::XS',
       JSON   => 'JSON::XS',
-      XML    => 'XML::Dumper',
     }
   },
 );
 
 has 'yamlxs_from_ref' => (
-  is   => 'rw', 
+  is   => 'rw',
   lazy => 1,
-  
+
   coerce => sub {
     YAML::XS::Dump($_[0])
   },
 );
 
 has 'ref_from_yamlxs' => (
-  is   => 'rw', 
+  is   => 'rw',
   lazy => 1,
-  
+
   coerce => sub {
     YAML::XS::Load($_[0])
   },
 );
 
 has 'yaml_from_ref' => (
-  is   => 'rw', 
+  is   => 'rw',
   lazy => 1,
-  
+
   coerce => sub {
     require YAML::Syck;
     YAML::Syck::Dump($_[0])
@@ -81,52 +84,32 @@ has 'yaml_from_ref' => (
 );
 
 has 'ref_from_yaml' => (
-  is   => 'rw', 
+  is   => 'rw',
   lazy => 1,
-  
+
   coerce => sub {
     require YAML::Syck;
     YAML::Syck::Load($_[0])
   },
 );
 
-has 'json_from_ref' => ( 
-  is   => 'rw', 
+has 'json_from_ref' => (
+  is   => 'rw',
   lazy => 1,
-  
+
   coerce => sub {
     my $jsify = JSON::XS->new->allow_nonref;
     $jsify->utf8->encode($_[0]);
   },
 );
 
-has 'ref_from_json' => ( 
-  is   => 'rw', 
+has 'ref_from_json' => (
+  is   => 'rw',
   lazy => 1,
-  
+
   coerce => sub {
     my $jsify = JSON::XS->new->allow_nonref;
     $jsify->utf8->decode($_[0])
-  },
-);
-
-has 'xml_from_ref' => ( 
-  is   => 'rw', 
-  lazy => 1,
-  
-  coerce => sub {
-    require XML::Dumper;
-    XML::Dumper->new->pl2xml($_[0])
-  },
-);
-
-has 'ref_from_xml' => ( 
-  is   => 'rw', 
-  lazy => 1,
-  
-  coerce => sub {
-    require XML::Dumper;
-    XML::Dumper->new->xml2pl($_[0])
   },
 );
 
@@ -187,9 +170,9 @@ sub writefile {
   } elsif (!defined $ref) {
     confess "writefile called without data to serialize"
   }
-  
+
   my $frozen = $self->freeze($ref);
-  
+
   $self->_write_serialized($path, $frozen, $opts)
 }
 
@@ -203,16 +186,16 @@ sub readfile {
   } elsif (!-e $path ) {
     confess "readfile called on nonexistant file $path";
   }
-  
+
   my $data = $self->_read_serialized($path, $opts);
-  
+
   $self->thaw($data)
 }
 
 sub version {
   my ($self) = @_;
-  
-  my $module = $self->_types->{ $self->Format }; 
+
+  my $module = $self->_types->{ $self->Format };
   { local $@; eval "require $module" }
   return($module, $module->VERSION);
 }
@@ -223,8 +206,8 @@ sub version {
 sub _check_if_avail {
   my ($self, $type) = @_;
   ## see if we have this serialization method available to us
-  
-  my $module;  
+
+  my $module;
   return unless $module = $self->_types->{$type};
 
   {
@@ -246,9 +229,9 @@ sub _read_serialized {
     $lock = $opts->{Locking} if defined $opts->{Locking};
   }
 
-  open(my $in_fh, '<', $path)
+  open(my $in_fh, '<:encoding(UTF-8)', $path)
     or confess "open failed for $path: $!";
-  
+
   if ($lock) {
     flock($in_fh, LOCK_SH)
       or confess "LOCK_SH failed for $path: $!";
@@ -260,8 +243,6 @@ sub _read_serialized {
 
   close($in_fh)
     or carp "close failed for $path: $!";
-
-  utf8::encode($data);
 
   return $data
 }
@@ -277,10 +258,8 @@ sub _write_serialized {
     $lock    = $opts->{Locking} if defined $opts->{Locking};
     $timeout = $opts->{Timeout} if $opts->{Timeout};
   }
-  
-  utf8::decode($data);
 
-  open(my $out_fh, '>>', $path)
+  open(my $out_fh, '>>:encoding(UTF-8)', $path)
     or confess "open failed for $path: $!";
 
   if ($lock) {
@@ -357,10 +336,10 @@ Bot::Cobalt::Serializer - Simple serialization wrapper
 
 =head1 DESCRIPTION
 
-Various pieces of L<Bot::Cobalt> need to read and write serialized data 
+Various pieces of L<Bot::Cobalt> need to read and write serialized data
 from/to disk.
 
-This simple OO frontend makes it trivially easy to work with a selection of 
+This simple OO frontend makes it trivially easy to work with a selection of
 serialization formats, automatically enabling Unicode encode/decode and 
 optionally providing the ability to read/write files directly.
 
@@ -411,10 +390,6 @@ B<YAMLXS> - YAML1.1 via L<YAML::XS>  I<(default)>
 =item *
 
 B<JSON> - JSON via L<JSON::XS>
-
-=item *
-
-B<XML> - XML via L<XML::Dumper> I<(glacially slow)>
 
 =back
 
@@ -513,10 +488,6 @@ L<YAML::XS> -- YAML1.1: L<http://yaml.org/spec/1.1/>
 =item *
 
 L<JSON>, L<JSON::XS> -- JSON: L<http://www.json.org/>
-
-=item *
-
-L<XML::Dumper>
 
 =back
 

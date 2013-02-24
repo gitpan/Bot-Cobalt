@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::ContextMeta::Auth;
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 
 use 5.10.1;
 use strictures 1;
@@ -99,6 +99,7 @@ sub flags {
   return $self->_list->{$context}->{$nickname}->{Flags}
 }
 
+sub user { goto &username }
 sub username {
   my ($self, $context, $nickname) = @_;
   
