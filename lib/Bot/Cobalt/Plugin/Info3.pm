@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Info3;
-our $VERSION = '0.015';
+our $VERSION = '0.016000';
 
 use 5.12.1;
 
@@ -957,6 +957,12 @@ In order to send a response as an action, prefix the response with B<+> :
   bot: add greetings +waves to N~
 
 Variable replacement works as-normal.
+
+=head4 Responding to an action
+
+A topic prefixed with C<~action> is a response to an action:
+
+  bot: add ~action+waves +waves back to N~
 
 =head3 del
 
