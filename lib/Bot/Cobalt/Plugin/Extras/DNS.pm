@@ -1,5 +1,5 @@
 package Bot::Cobalt::Plugin::Extras::DNS;
-our $VERSION = '0.016001';
+our $VERSION = '0.016002';
 
 use 5.10.1;
 
@@ -125,24 +125,13 @@ sub dns_resp_recv {
   }
   
   my @send;
-  for my $ans ( $nsresp->answer() ) {
-    for ($ans->type()) {
-
-      when ("SOA") {
-        push(@send, 
-          'SOA=' . join(':', 
-            $ans->mname, $ans->rname, 
-            $ans->serial, $ans->refresh, 
-            $ans->retry, $ans->expire, 
-            $ans->minimum
-           )
-        );
-      }
-      
-      default {
-        push(@send, join('=', $ans->type(), $ans->rdatastr() ) );
-      }
-    
+  for my $ans ($nsresp->answer) {
+    if ($ans->type eq 'SOA') {
+      push @send, 'SOA=' . join ':', 
+             $ans->mname, $ans->rname, $ans->serial, $ans->refresh,
+             $ans->retry, $ans->expire, $ans->minimum
+    } else {
+      push @send, join '=', $ans->type, $ans->rdatastr
     }
   }
   

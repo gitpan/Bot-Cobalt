@@ -1,5 +1,5 @@
 package Bot::Cobalt::IRC;
-our $VERSION = '0.016001';
+our $VERSION = '0.016002';
 
 use 5.10.1;
 use strictures 1;
@@ -1254,11 +1254,12 @@ You can walk each individual mode and handle known types:
 
   MODE: for my $mode (@modes) {
     for ($mode) {
-      next MODE when /[cimnpstCMRS]/; # oftc-hybrid/bc6 param-less modes
-      when ("l") {  ## limit mode has an arg
+      next MODE if $mode =~ /[cimnpstCMRS]/; # oftc-hybrid/bc6 param-less modes
+      if ($mode eq 'l') {  ## limit mode has an arg
         my $limit = shift @args;
+        ...
       }
-      when ("b") {
+      if ($mode eq 'b') {
         ## shift off a ban ...
       }
       ## etc

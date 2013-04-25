@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::Role::IRC;
-our $VERSION = '0.016001';
+our $VERSION = '0.016002';
 
 use 5.10.1;
 use strictures 1;
@@ -87,7 +87,7 @@ __END__
 
 =head1 NAME
 
-Bot::Cobalt::Core::Role::IRC - A role for managing a collection of Servers
+Bot::Cobalt::Core::Role::IRC
 
 =head1 SYNOPSIS
 
@@ -97,7 +97,7 @@ Bot::Cobalt::Core::Role::IRC - A role for managing a collection of Servers
   
 =head1 DESCRIPTION
 
-A Moo role for managing a pool of L<Bot::Cobalt::IRC::Server> objects.
+L<Bot::Cobalt> core methods for managing a pool of L<Bot::Cobalt::IRC::Server> objects.
 
 This role is consumed by L<Bot::Cobalt::Core> to provide the B<Servers> hash 
 (keyed on configured context name) and some convenience methods.

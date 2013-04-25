@@ -1,5 +1,5 @@
 package Bot::Cobalt::Core::Role::Timers;
-our $VERSION = '0.016001';
+our $VERSION = '0.016002';
 
 use 5.10.1;
 use strict;
@@ -212,7 +212,7 @@ __END__
 
 =head1 NAME
 
-Bot::Cobalt::Core::Role::Timers - A role for managing a timer pool
+Bot::Cobalt::Core::Role::Timers
 
 =head1 SYNOPSIS
 
@@ -242,7 +242,8 @@ Bot::Cobalt::Core::Role::Timers - A role for managing a timer pool
 
 =head1 DESCRIPTION
 
-A Moo role for managing a pool of timers living in a TimerPool hash.
+L<Bot::Cobalt> core interface role for managing a pool of timers living in a
+TimerPool hash.
 
 This is consumed by L<Bot::Cobalt::Core> to provide timer manipulation 
 methods to the plugin pipeline.

@@ -1,5 +1,5 @@
 package Bot::Cobalt;
-our $VERSION = '0.016001';
+our $VERSION = '0.016002';
 
 use 5.10.1;
 use strictures 1;
@@ -29,7 +29,7 @@ sub instance {
     return
   }
 
-  return Bot::Cobalt::Core->instance 
+  Bot::Cobalt::Core->instance 
 }
 
 sub new {
